@@ -1,0 +1,185 @@
+---
+title: Supabase Edge Function
+description: Implementação completa do receptor de eventos usando Supabase Edge Functions.
+---
+
+Se seu backend é Supabase, implemente o receptor como uma Edge Function. O Deno runtime suporta a Web Crypto API nativamente — sem dependências extras para HMAC.
+
+## Estrutura de arquivos
+
+```
+supabase/
+├── functions/
+│   └── cartsapp-webhook/
+│       └── index.ts
+└── migrations/
+    └── 001_messages.sql
+```
+
+---
+
+## Migration
+
+Crie a tabela para persistir as mensagens recebidas:
+
+```sql
+-- supabase/migrations/001_messages.sql
+create table if not exists messages (
+  id          uuid primary key default gen_random_uuid(),
+  wamid       text not null,
+  channel_id  text not null,
+  from_number text not null,
+  type        text not null default 'text',
+  body        text,
+  received_at timestamptz not null default now(),
+  created_at  timestamptz not null default now(),
+  constraint messages_wamid_unique unique (wamid)
+);
+
+alter table messages enable row level security;
+```
+
+Execute:
+
+```bash
+supabase db push
+```
+
+---
+
+## Edge Function
+
+```typescript
+// supabase/functions/cartsapp-webhook/index.ts
+/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+// Cliente criado uma vez, reutilizado entre invocações
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+)
+
+const encoder = new TextEncoder()
+
+async function verifySignature(
+  body: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> {
+  if (!signatureHeader.startsWith('sha256=')) return false
+
+  const expectedHex = signatureHeader.slice(7)
+  if (expectedHex.length % 2 !== 0) return false
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify'],
+  )
+
+  const expectedBytes = new Uint8Array(expectedHex.length / 2)
+  for (let i = 0; i < expectedHex.length; i += 2) {
+    expectedBytes[i / 2] = parseInt(expectedHex.slice(i, i + 2), 16)
+  }
+
+  return crypto.subtle.verify('HMAC', key, expectedBytes, encoder.encode(body))
+}
+
+async function processEvent(event: Record<string, unknown>): Promise<void> {
+  if (event.event === 'messages') {
+    const data = event.data as Record<string, unknown>
+    await supabase.from('messages').upsert({
+      wamid:       data.wamid,
+      channel_id:  event.channel_id,
+      from_number: data.from,
+      type:        data.type ?? 'text',
+      body:        (data.text as Record<string, string> | undefined)?.body ?? null,
+      received_at: new Date(parseInt(data.timestamp as string) * 1000).toISOString(),
+    }, { onConflict: 'wamid', ignoreDuplicates: true })
+  }
+  // Adicione outros handlers conforme necessário
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405 })
+  }
+
+  const body = await req.text()
+  const signature = req.headers.get('x-cartsapp-signature') ?? ''
+  const secret = Deno.env.get('CARTSAPP_HMAC_SECRET') ?? ''
+
+  const valid = await verifySignature(body, signature, secret)
+  if (!valid) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  const event = JSON.parse(body) as Record<string, unknown>
+
+  // Responde 200 ANTES de processar — EdgeRuntime.waitUntil garante que
+  // o processamento conclua mesmo após o retorno da Response
+  if (typeof EdgeRuntime !== 'undefined') {
+    EdgeRuntime.waitUntil(processEvent(event).catch(console.error))
+  } else {
+    processEvent(event).catch(console.error)
+  }
+
+  return new Response('OK', { status: 200 })
+})
+```
+
+---
+
+## Variáveis de ambiente
+
+Configure os secrets no projeto Supabase:
+
+```bash
+supabase secrets set CARTSAPP_HMAC_SECRET='seu-hmac-secret'
+```
+
+<Note>
+`SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` são injetados automaticamente em Edge Functions — não é necessário configurar.
+</Note>
+
+---
+
+## Deploy
+
+```bash
+supabase functions deploy cartsapp-webhook
+```
+
+A URL da função é:
+
+```
+https://<project-ref>.supabase.co/functions/v1/cartsapp-webhook
+```
+
+Use essa URL ao criar o webhook no Cartsapp:
+
+```bash
+curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
+  -H "x-api-key: crt_pk_sua-chave" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Meu receptor",
+    "url": "https://<project-ref>.supabase.co/functions/v1/cartsapp-webhook",
+    "events": ["messages", "message_status"]
+  }'
+```
+
+<Warning>
+Salve o `hmac_secret` retornado e configure via `supabase secrets set` antes de testar.
+</Warning>
+
+---
+
+## Logs
+
+```bash
+supabase functions logs cartsapp-webhook --tail
+```

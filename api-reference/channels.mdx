@@ -1,0 +1,107 @@
+---
+title: Canais
+description: Gerencie os canais WhatsApp da sua organização.
+---
+
+Um canal representa um número WhatsApp conectado ao Cartsapp. Após criar um canal, compartilhe o `connect_url` para que o responsável pelo número faça a conexão via WhatsApp Embedded Signup.
+
+## Tipo Channel
+
+```typescript
+type Channel = {
+  id:                   string        // UUID
+  name:                 string
+  status:               'pending' | 'active' | 'inactive'
+  display_phone_number: string | null // ex: "+55 11 99999-9999"
+  phone_number_id:      string | null // ID do número na Meta
+  channel_token:        string        // token do link de conexão
+  connect_url:          string        // https://cartsapp.com.br/connect/<token>
+  connected_at:         string | null // ISO 8601
+  token_expires_at:     string | null // ISO 8601 — link expira após este prazo
+  created_at:           string        // ISO 8601
+}
+```
+
+## Endpoints
+
+### Listar canais
+
+<ParamField header="x-api-key" type="string" required>
+  Sua API Key
+</ParamField>
+
+```bash
+GET /channels
+```
+
+```bash
+curl https://<project-ref>.supabase.co/functions/v1/api/channels \
+  -H "x-api-key: crt_pk_sua-chave"
+```
+
+**Resposta:** `Channel[]`
+
+---
+
+### Criar canal
+
+```bash
+POST /channels
+```
+
+<ParamField body="name" type="string" required>
+  Nome identificador do canal
+</ParamField>
+
+```bash
+curl -X POST https://<project-ref>.supabase.co/functions/v1/api/channels \
+  -H "x-api-key: crt_pk_sua-chave" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Suporte Principal" }'
+```
+
+**Resposta:** `Channel` — status `201 Created`
+
+Após criar, compartilhe o `connect_url` retornado para que o número seja conectado.
+
+---
+
+### Buscar canal
+
+```bash
+GET /channels/:id
+```
+
+```bash
+curl https://<project-ref>.supabase.co/functions/v1/api/channels/uuid-do-canal \
+  -H "x-api-key: crt_pk_sua-chave"
+```
+
+**Resposta:** `Channel`
+
+---
+
+### Deletar canal
+
+```bash
+DELETE /channels/:id
+```
+
+<ParamField query="force" type="boolean">
+  Obrigatório se o canal está com `status: active`. Use `?force=true` para confirmar.
+</ParamField>
+
+```bash
+curl -X DELETE "https://<project-ref>.supabase.co/functions/v1/api/channels/uuid-do-canal?force=true" \
+  -H "x-api-key: crt_pk_sua-chave"
+```
+
+**Resposta:** `204 No Content`
+
+## Erros
+
+| Status | Mensagem | Causa |
+|--------|----------|-------|
+| `404` | `Channel not found` | ID não existe ou não pertence à sua org |
+| `409` | `Channel is active. Use ?force=true...` | Tentou deletar canal ativo sem `?force=true` |
+| `422` | `"name" is required` | Body sem o campo `name` |

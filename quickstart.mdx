@@ -1,47 +1,57 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: Quick Start
+description: Do zero a recebendo mensagens WhatsApp em menos de 10 minutos.
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+## 1. Gere uma API Key
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+No painel do Cartsapp, vá em **Configurações → API Keys** e crie uma nova chave.
 
-## Prerequisites
+Guarde o valor — ele só é exibido uma vez.
 
-Before you begin, you must have:
+## 2. Crie um canal
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+```bash
+curl -X POST https://<project-ref>.supabase.co/functions/v1/api/channels \
+  -H "x-api-key: crt_pk_sua-chave" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Suporte Principal" }'
+```
 
-## Get started
+A resposta inclui `connect_url` — compartilhe esse link com o responsável pelo número WhatsApp para conectar.
 
-<Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+## 3. Crie um webhook
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+```bash
+curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
+  -H "x-api-key: crt_pk_sua-chave" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Meu CRM",
+    "url": "https://meuapp.com/webhook/cartsapp",
+    "events": ["messages", "message_status"]
+  }'
+```
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+<Warning>
+Salve o `hmac_secret` retornado. Ele **não pode ser recuperado** depois — use-o para verificar a autenticidade dos eventos recebidos.
+</Warning>
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+## 4. Implemente o receptor
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+```typescript
+export async function POST(request: Request): Promise<Response> {
+  const body = await request.text()
+  const signature = request.headers.get('x-cartsapp-signature') ?? ''
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+  const valid = await verifySignature(body, signature, process.env.CARTSAPP_HMAC_SECRET!)
+  if (!valid) return new Response('Unauthorized', { status: 401 })
+
+  // Responder 200 ANTES de processar (timeout de 10s)
+  processEvent(JSON.parse(body)).catch(console.error)
+
+  return new Response('OK', { status: 200 })
+}
+```
+
+Pronto. Veja a [implementação completa](/receiving-events/overview) e o [guia de segurança](/receiving-events/security).

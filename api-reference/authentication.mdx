@@ -1,0 +1,86 @@
+---
+title: Autenticação
+description: Como autenticar nas chamadas à API de Gerenciamento do Cartsapp.
+---
+
+## Base URL
+
+```
+https://<project-ref>.supabase.co/functions/v1/api
+```
+
+## API Key
+
+Todas as requisições devem incluir o header `x-api-key` com sua chave de API.
+
+```bash
+curl https://<project-ref>.supabase.co/functions/v1/api/channels \
+  -H "x-api-key: crt_pk_sua-chave"
+```
+
+As chaves são geradas no painel em **Configurações → API Keys** e têm o formato `crt_pk_...`.
+
+<Warning>
+Nunca exponha sua API Key no código frontend ou em repositórios públicos. Use variáveis de ambiente.
+</Warning>
+
+## Erros de autenticação
+
+| Status | Mensagem | Causa |
+|--------|----------|-------|
+| `401` | `x-api-key header required` | Header ausente |
+| `401` | `Invalid or revoked API key` | Chave inválida ou revogada |
+| `401` | `API key expired` | Chave com prazo expirado |
+| `429` | `Rate limit exceeded` | Excedeu o limite de requisições |
+
+### Rate limiting
+
+Quando o limite é excedido, a resposta inclui o header `Retry-After` com o número de segundos a aguardar.
+
+```typescript
+if (response.status === 429) {
+  const retryAfter = response.headers.get('Retry-After')
+  // aguardar retryAfter segundos antes de tentar novamente
+}
+```
+
+## Client TypeScript recomendado
+
+```typescript
+class CartsappClient {
+  private baseUrl: string
+  private apiKey: string
+
+  constructor(projectRef: string, apiKey: string) {
+    this.baseUrl = `https://${projectRef}.supabase.co/functions/v1/api`
+    this.apiKey = apiKey
+  }
+
+  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: {
+        'x-api-key': this.apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+
+    if (res.status === 429) {
+      const retry = res.headers.get('Retry-After') ?? '60'
+      throw new Error(`Rate limit exceeded. Retry after ${retry}s`)
+    }
+
+    if (res.status === 204) return undefined as T
+
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
+    return json as T
+  }
+}
+
+const cartsapp = new CartsappClient(
+  process.env.CARTSAPP_PROJECT_REF!,
+  process.env.CARTSAPP_API_KEY!,
+)
+```

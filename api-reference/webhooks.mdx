@@ -1,0 +1,161 @@
+---
+title: Webhooks
+description: Configure endpoints para receber eventos WhatsApp em tempo real.
+---
+
+Webhooks entregam eventos via POST para a URL que você configurar. Cada webhook tem um `hmac_secret` usado para assinar as entregas — guarde-o para [verificar a autenticidade](/receiving-events/security) dos eventos recebidos.
+
+## Tipo WebhookConfig
+
+```typescript
+type WebhookConfig = {
+  id:          string
+  name:        string
+  url:         string                              // sempre HTTPS
+  events:      Array<'messages' | 'message_status'>
+  status:      'active' | 'paused'
+  hmac_secret: string                              // guardar no .env — não muda
+  scope:       'org' | 'channels'                 // org = todos os canais
+  channel_ids: string[]                            // vazio quando scope = 'org'
+  created_at:  string                              // ISO 8601
+}
+```
+
+## Endpoints
+
+### Listar webhooks
+
+```bash
+GET /webhooks
+```
+
+```bash
+curl https://<project-ref>.supabase.co/functions/v1/api/webhooks \
+  -H "x-api-key: crt_pk_sua-chave"
+```
+
+**Resposta:** `WebhookConfig[]`
+
+---
+
+### Criar webhook
+
+```bash
+POST /webhooks
+```
+
+<ParamField body="name" type="string" required>
+  Nome identificador
+</ParamField>
+
+<ParamField body="url" type="string" required>
+  URL do seu endpoint. Deve começar com `https://`.
+</ParamField>
+
+<ParamField body="events" type="string[]" required>
+  Eventos a receber. Valores: `messages`, `message_status`.
+</ParamField>
+
+<ParamField body="channel_ids" type="string[]">
+  IDs dos canais a filtrar. Se omitido, recebe eventos de **todos os canais** da org.
+</ParamField>
+
+```bash
+curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
+  -H "x-api-key: crt_pk_sua-chave" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Meu CRM",
+    "url": "https://meuapp.com/webhook/cartsapp",
+    "events": ["messages", "message_status"]
+  }'
+```
+
+**Resposta:** `WebhookConfig` — status `201 Created`
+
+<Warning>
+Salve o `hmac_secret` retornado imediatamente. Ele **não pode ser recuperado** depois. Se for perdido, delete e recrie o webhook.
+</Warning>
+
+---
+
+### Buscar webhook
+
+```bash
+GET /webhooks/:id
+```
+
+---
+
+### Pausar / reativar webhook
+
+```bash
+PATCH /webhooks/:id
+```
+
+<ParamField body="status" type="string" required>
+  `"active"` ou `"paused"`
+</ParamField>
+
+```bash
+# Pausar
+curl -X PATCH https://<project-ref>.supabase.co/functions/v1/api/webhooks/uuid \
+  -H "x-api-key: crt_pk_sua-chave" \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "paused" }'
+```
+
+---
+
+### Deletar webhook
+
+```bash
+DELETE /webhooks/:id
+```
+
+**Resposta:** `204 No Content`
+
+---
+
+### Atribuir canal ao webhook
+
+```bash
+POST /webhooks/:wid/channels/:cid
+```
+
+Operação idempotente — seguro chamar múltiplas vezes.
+
+**Resposta:** `{ webhook_config_id: string, channel_id: string }`
+
+---
+
+### Remover canal do webhook
+
+```bash
+DELETE /webhooks/:wid/channels/:cid
+```
+
+**Resposta:** `204 No Content`
+
+## Retry automático
+
+O Cartsapp tenta reenviar eventos em caso de falha:
+
+| Tentativa | Delay |
+|-----------|-------|
+| 1ª | imediata |
+| 2ª | 30 segundos |
+| 3ª | 2 minutos |
+| 4ª | 10 minutos |
+| Após 4 falhas | falha permanente |
+
+Seu endpoint tem **10 segundos** para responder com status 2xx. Responda sempre antes de processar — veja [Segurança](/receiving-events/security).
+
+## Erros
+
+| Status | Mensagem | Causa |
+|--------|----------|-------|
+| `404` | `Webhook not found` | ID não existe ou não pertence à sua org |
+| `422` | `"url" must start with https://` | URL sem HTTPS |
+| `422` | `"events" values must be one of: messages, message_status` | Evento inválido |
+| `422` | `One or more channel_ids not found in this org` | Canal não pertence à sua org |

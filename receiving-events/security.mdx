@@ -1,0 +1,118 @@
+---
+title: Segurança
+description: Verificação de assinatura HMAC, resposta assíncrona e idempotência.
+---
+
+## Verificação da assinatura HMAC
+
+Todo evento carrega o header `x-cartsapp-signature` com uma assinatura HMAC-SHA256 no formato `sha256=<hex>`.
+
+**Rejeite qualquer requisição sem assinatura válida.**
+
+```typescript
+async function verifySignature(
+  body: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> {
+  if (!signatureHeader.startsWith('sha256=')) return false
+
+  const expectedHex = signatureHeader.slice(7)
+  if (expectedHex.length % 2 !== 0) return false // hex truncado = inválido
+
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify'],
+  )
+
+  const expectedBytes = new Uint8Array(expectedHex.length / 2)
+  for (let i = 0; i < expectedHex.length; i += 2) {
+    expectedBytes[i / 2] = parseInt(expectedHex.slice(i, i + 2), 16)
+  }
+
+  return crypto.subtle.verify('HMAC', key, expectedBytes, encoder.encode(body))
+}
+```
+
+<Warning>
+**Não use comparação de string direta** (`signature === expected`). A Web Crypto API com `crypto.subtle.verify` usa comparação em tempo constante, prevenindo timing attacks. Nunca reimplemente isso manualmente.
+</Warning>
+
+### Usando no endpoint
+
+```typescript
+export async function POST(request: Request): Promise<Response> {
+  // 1. Ler o body como texto — ANTES de qualquer parse
+  const body = await request.text()
+  const signature = request.headers.get('x-cartsapp-signature') ?? ''
+
+  // 2. Verificar assinatura — rejeitar imediatamente se inválida
+  const valid = await verifySignature(body, signature, process.env.CARTSAPP_HMAC_SECRET!)
+  if (!valid) return new Response('Unauthorized', { status: 401 })
+
+  const event = JSON.parse(body)
+
+  // 3. Responder 200 ANTES de processar (veja seção abaixo)
+  processEvent(event).catch(console.error)
+  return new Response('OK', { status: 200 })
+}
+```
+
+---
+
+## Responda 200 antes de processar
+
+O Cartsapp aguarda **10 segundos** pela resposta. Se seu endpoint demorar mais, o evento é marcado como falha e reenviado.
+
+**Padrão correto: responda 200 imediatamente, processe em background.**
+
+```typescript
+// ✅ Correto — responde antes de processar
+processEvent(event).catch(console.error)
+return new Response('OK', { status: 200 })
+
+// ❌ Errado — bloqueia até o processamento terminar
+await processEvent(event)
+return new Response('OK', { status: 200 })
+```
+
+<Tip>
+Em Supabase Edge Functions, use `EdgeRuntime.waitUntil()` para garantir que o processamento conclua mesmo após o retorno da Response. Veja o [guia Supabase](/receiving-events/supabase).
+</Tip>
+
+---
+
+## Idempotência
+
+O Cartsapp pode reenviar o mesmo evento em caso de falha de rede ou timeout. Use o campo `wamid` como chave de idempotência.
+
+```sql
+-- Nunca falha em duplicatas
+INSERT INTO messages (wamid, channel_id, from_number, body, received_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (wamid) DO NOTHING;
+```
+
+```typescript
+// Supabase JS — equivalente
+await supabase
+  .from('messages')
+  .upsert({ wamid, channel_id, from_number, body, received_at }, { onConflict: 'wamid', ignoreDuplicates: true })
+```
+
+---
+
+## Credenciais
+
+| Variável de ambiente | Descrição |
+|---|---|
+| `CARTSAPP_HMAC_SECRET` | Retornado ao criar o webhook. Não pode ser recuperado — salve imediatamente. |
+| `CARTSAPP_API_KEY` | Gerado em **Configurações → API Keys**. Prefixo `crt_pk_`. |
+
+**Nunca exponha essas credenciais no frontend, logs, ou repositórios públicos.**
+
+Se o `hmac_secret` for comprometido, delete o webhook e crie um novo — um novo secret será gerado.

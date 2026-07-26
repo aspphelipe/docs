@@ -1,157 +1,85 @@
 ---
 title: Visão Geral
-description: Estrutura dos eventos enviados pelo Coexy para o seu webhook.
+description: Eventos enviados pelo Coexy — o payload segue o formato nativo da Meta (WhatsApp Cloud API).
 ---
 
-O Coexy envia eventos via POST com `Content-Type: application/json`. Todo evento tem os campos `event` e `data`. O header `x-coexy-signature` carrega a assinatura HMAC-SHA256 — [verifique-a](/receiving-events/security) antes de processar qualquer dado.
+O Coexy entrega eventos via `POST` com `Content-Type: application/json`. O header `x-coexy-signature` carrega a assinatura HMAC-SHA256 — [verifique-a](/receiving-events/security) antes de processar qualquer dado.
 
-## Campos comuns
+## Headers de cada entrega
 
-```typescript
-type Event = MessagesEvent | MessageStatusEvent
-
-type BaseEvent = {
-  event:      string    // tipo do evento
-  channel_id: string    // UUID do canal Coexy
-  org_id:     string    // UUID da sua organização
-}
+```
+X-Coexy-Signature: sha256=<hex>   — assinatura HMAC do body
+User-Agent:        Coexy-Webhooks/1.0
+Content-Type:      application/json
 ```
 
-## MessagesEvent
+## Formato do payload
 
-Disparado quando uma mensagem é recebida no canal.
-
-```typescript
-type MessagesEvent = BaseEvent & {
-  event: 'messages'
-  data: {
-    wamid:        string          // ID único da mensagem na Meta (use como idempotency key)
-    from:         string          // número do remetente, ex: "5511999999999"
-    contact_name: string | null   // nome do contato no WhatsApp
-    timestamp:    string          // Unix timestamp em string
-    type:         'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'contacts' | 'interactive' | 'button' | 'order' | 'unknown'
-    text?:        { body: string }
-    image?:       { id: string; mime_type: string; sha256: string; caption?: string }
-    audio?:       { id: string; mime_type: string; sha256: string; voice: boolean }
-    video?:       { id: string; mime_type: string; sha256: string; caption?: string }
-    document?:    { id: string; mime_type: string; sha256: string; filename?: string; caption?: string }
-    sticker?:     { id: string; mime_type: string; sha256: string; animated: boolean }
-    location?:    { latitude: number; longitude: number; name?: string; address?: string }
-    contacts?:    Array<{ name: { formatted_name: string }; phones?: Array<{ phone: string }> }>
-    interactive?: { type: string; [key: string]: unknown }
-    button?:      { payload: string; text: string }
-    order?:       { catalog_id: string; product_items: unknown[] }
-    context?:     { from: string; id: string }   // presente quando é resposta a outra mensagem
-  }
-}
-```
-
-**Exemplo de payload:**
+O body entregue é o **payload nativo da Meta** (WhatsApp Cloud API), sem transformações. O Coexy funciona como relay transparente — a estrutura dos eventos é idêntica à que a Meta enviaria diretamente.
 
 ```json
 {
-  "event": "messages",
-  "channel_id": "550e8400-e29b-41d4-a716-446655440000",
-  "org_id": "7f3e9c2a-1b4d-4f8e-9a2c-3d5e7f9b1c4a",
-  "data": {
-    "wamid": "wamid.HBgLNTUxMTk5OTk5OTkVAgARGBI...",
-    "from": "5511999999999",
-    "contact_name": "João Silva",
-    "timestamp": "1716400000",
-    "type": "text",
-    "text": { "body": "Olá, quero saber sobre o produto" }
-  }
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "<WHATSAPP_BUSINESS_ACCOUNT_ID>",
+    "changes": [{
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": {
+          "display_phone_number": "15550783881",
+          "phone_number_id": "<PHONE_NUMBER_ID>"
+        },
+        "contacts": [{ "profile": { "name": "João Silva" }, "wa_id": "5511987654321" }],
+        "messages": [ /* mensagens recebidas */ ],
+        "statuses": [ /* atualizações de status */ ]
+      },
+      "field": "messages"
+    }]
+  }]
 }
 ```
 
----
+Para a estrutura completa de cada tipo de evento, consulte a documentação oficial da Meta:
 
-## MessageStatusEvent
-
-Disparado quando o status de uma mensagem enviada muda.
-
-```typescript
-type MessageStatusEvent = BaseEvent & {
-  event: 'message_status'
-  data: {
-    wamid:       string                                    // ID da mensagem enviada
-    recipient:   string                                    // número do destinatário
-    status:      'sent' | 'delivered' | 'read' | 'failed'
-    timestamp:   string                                    // Unix timestamp
-    errors?:     Array<{ code: number; title: string }>   // presente quando status = 'failed'
-  }
-}
-```
-
-**Exemplo de payload:**
-
-```json
-{
-  "event": "message_status",
-  "channel_id": "550e8400-e29b-41d4-a716-446655440000",
-  "org_id": "7f3e9c2a-1b4d-4f8e-9a2c-3d5e7f9b1c4a",
-  "data": {
-    "wamid": "wamid.HBgLNTUxMTk5OTk5OTkVAgARGBI...",
-    "recipient": "5511999999999",
-    "status": "delivered",
-    "timestamp": "1716400005"
-  }
-}
-```
-
----
+- [Exemplos de payload (Meta)](https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples)
+- [Referência de campos (Meta)](https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components)
 
 ## Processando eventos
 
 ```typescript
-type Event = MessagesEvent | MessageStatusEvent
+async function handleWebhook(req: Request): Promise<Response> {
+  const body = await req.text()
 
-async function processEvent(event: Event): Promise<void> {
-  switch (event.event) {
-    case 'messages':
-      await handleMessage(event)
-      break
-    case 'message_status':
-      await handleStatusUpdate(event)
-      break
-    default:
-      // ignorar eventos desconhecidos — novos tipos podem ser adicionados
-      console.log('evento desconhecido:', (event as BaseEvent).event)
-  }
+  // 1. Verificar assinatura HMAC — obrigatório (ver Segurança)
+  const valid = await verifySignature(body, req.headers.get('x-coexy-signature') ?? '', secret)
+  if (!valid) return new Response('Unauthorized', { status: 401 })
+
+  // 2. Responder 200 IMEDIATAMENTE — o Coexy considera falha após 10s
+  processPayload(JSON.parse(body)).catch(console.error)
+  return new Response('OK', { status: 200 })
 }
 
-async function handleMessage(event: MessagesEvent): Promise<void> {
-  const { wamid, from, type, text, contact_name, timestamp } = event.data
+function processPayload(payload: unknown): void {
+  const data = payload as { entry?: Array<{ changes?: Array<{ value: Record<string, unknown> }> }> }
 
-  // Persistir usando wamid como chave de idempotência
-  await db.upsert('messages', {
-    wamid,
-    channel_id: event.channel_id,
-    from_number: from,
-    contact_name,
-    type,
-    body: text?.body ?? null,
-    received_at: new Date(parseInt(timestamp) * 1000).toISOString(),
-  }, { onConflict: 'wamid' })
+  for (const entry of data.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const value = change.value
 
-  // Disparar lógica de negócio (CRM, bot, notificação)
-  if (type === 'text' && text?.body) {
-    await triggerAutomation(from, text.body)
-  }
-}
+      // Mensagens recebidas
+      for (const msg of (value.messages as unknown[]) ?? []) {
+        handleMessage(msg, value)
+      }
 
-async function handleStatusUpdate(event: MessageStatusEvent): Promise<void> {
-  const { wamid, status, errors } = event.data
-
-  await db.update('sent_messages', { status }, { where: { wamid } })
-
-  if (status === 'failed' && errors) {
-    console.error('Falha na entrega:', wamid, errors)
-    await notifyDeliveryFailure(wamid, errors)
+      // Status de mensagens enviadas
+      for (const status of (value.statuses as unknown[]) ?? []) {
+        handleStatus(status)
+      }
+    }
   }
 }
 ```
 
 <Tip>
-Use `wamid` como chave única ao persistir mensagens. O mesmo evento pode chegar mais de uma vez no retry automático — um `upsert` com `on conflict (wamid) do nothing` garante idempotência.
+Use o campo `id` de cada mensagem (o `wamid`) como chave de idempotência ao persistir. O mesmo evento pode chegar mais de uma vez em retentativas automáticas — um `upsert` com `on conflict (wamid) do nothing` garante que não haverá duplicatas.
 </Tip>

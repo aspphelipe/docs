@@ -16,13 +16,13 @@
     "links": [
       {
         "label": "Dashboard",
-        "href": "https://cartsapp.com.br"
+        "href": "https://www.coexy.com.br/"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Começar grátis",
-      "href": "https://cartsapp.com.br"
+      "href": "https://www.coexy.com.br/login"
     }
   },
   "navigation": {

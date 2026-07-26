@@ -1,9 +1,9 @@
 ---
 title: Visão Geral
-description: Estrutura dos eventos enviados pelo Cartsapp para o seu webhook.
+description: Estrutura dos eventos enviados pelo Coexy para o seu webhook.
 ---
 
-O Cartsapp envia eventos via POST com `Content-Type: application/json`. Todo evento tem os campos `event` e `data`. O header `x-cartsapp-signature` carrega a assinatura HMAC-SHA256 — [verifique-a](/receiving-events/security) antes de processar qualquer dado.
+O Coexy envia eventos via POST com `Content-Type: application/json`. Todo evento tem os campos `event` e `data`. O header `x-coexy-signature` carrega a assinatura HMAC-SHA256 — [verifique-a](/receiving-events/security) antes de processar qualquer dado.
 
 ## Campos comuns
 
@@ -12,7 +12,7 @@ type Event = MessagesEvent | MessageStatusEvent
 
 type BaseEvent = {
   event:      string    // tipo do evento
-  channel_id: string    // UUID do canal Cartsapp
+  channel_id: string    // UUID do canal Coexy
   org_id:     string    // UUID da sua organização
 }
 ```

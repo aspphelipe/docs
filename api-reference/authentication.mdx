@@ -1,6 +1,6 @@
 ---
 title: Autenticação
-description: Como autenticar nas chamadas à API de Gerenciamento do Cartsapp.
+description: Como autenticar nas chamadas à API de Gerenciamento do Coexy.
 ---
 
 ## Base URL
@@ -47,7 +47,7 @@ if (response.status === 429) {
 ## Client TypeScript recomendado
 
 ```typescript
-class CartsappClient {
+class CoexyClient {
   private baseUrl: string
   private apiKey: string
 
@@ -79,8 +79,8 @@ class CartsappClient {
   }
 }
 
-const cartsapp = new CartsappClient(
-  process.env.CARTSAPP_PROJECT_REF!,
-  process.env.CARTSAPP_API_KEY!,
+const coexy = new CoexyClient(
+  process.env.COEXY_PROJECT_REF!,
+  process.env.COEXY_API_KEY!,
 )
 ```

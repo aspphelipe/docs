@@ -5,7 +5,7 @@ description: Do zero a recebendo mensagens WhatsApp em menos de 10 minutos.
 
 ## 1. Gere uma API Key
 
-No painel do Cartsapp, vá em **Configurações → API Keys** e crie uma nova chave.
+No painel do Coexy, vá em **Configurações → API Keys** e crie uma nova chave.
 
 Guarde o valor — ele só é exibido uma vez.
 
@@ -28,7 +28,7 @@ curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Meu CRM",
-    "url": "https://meuapp.com/webhook/cartsapp",
+    "url": "https://meuapp.com/webhook/coexy",
     "events": ["messages", "message_status"]
   }'
 ```
@@ -42,9 +42,9 @@ Salve o `hmac_secret` retornado. Ele **não pode ser recuperado** depois — use
 ```typescript
 export async function POST(request: Request): Promise<Response> {
   const body = await request.text()
-  const signature = request.headers.get('x-cartsapp-signature') ?? ''
+  const signature = request.headers.get('x-coexy-signature') ?? ''
 
-  const valid = await verifySignature(body, signature, process.env.CARTSAPP_HMAC_SECRET!)
+  const valid = await verifySignature(body, signature, process.env.COEXY_HMAC_SECRET!)
   if (!valid) return new Response('Unauthorized', { status: 401 })
 
   // Responder 200 ANTES de processar (timeout de 10s)

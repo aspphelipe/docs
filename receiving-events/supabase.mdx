@@ -10,7 +10,7 @@ Se seu backend é Supabase, implemente o receptor como uma Edge Function. O Deno
 ```
 supabase/
 ├── functions/
-│   └── cartsapp-webhook/
+│   └── coexy-webhook/
 │       └── index.ts
 └── migrations/
     └── 001_messages.sql
@@ -50,7 +50,7 @@ supabase db push
 ## Edge Function
 
 ```typescript
-// supabase/functions/cartsapp-webhook/index.ts
+// supabase/functions/coexy-webhook/index.ts
 /// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -109,8 +109,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const body = await req.text()
-  const signature = req.headers.get('x-cartsapp-signature') ?? ''
-  const secret = Deno.env.get('CARTSAPP_HMAC_SECRET') ?? ''
+  const signature = req.headers.get('x-coexy-signature') ?? ''
+  const secret = Deno.env.get('COEXY_HMAC_SECRET') ?? ''
 
   const valid = await verifySignature(body, signature, secret)
   if (!valid) {
@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
 Configure os secrets no projeto Supabase:
 
 ```bash
-supabase secrets set CARTSAPP_HMAC_SECRET='seu-hmac-secret'
+supabase secrets set COEXY_HMAC_SECRET='seu-hmac-secret'
 ```
 
 <Note>
@@ -150,16 +150,16 @@ supabase secrets set CARTSAPP_HMAC_SECRET='seu-hmac-secret'
 ## Deploy
 
 ```bash
-supabase functions deploy cartsapp-webhook
+supabase functions deploy coexy-webhook
 ```
 
 A URL da função é:
 
 ```
-https://<project-ref>.supabase.co/functions/v1/cartsapp-webhook
+https://<project-ref>.supabase.co/functions/v1/coexy-webhook
 ```
 
-Use essa URL ao criar o webhook no Cartsapp:
+Use essa URL ao criar o webhook no Coexy:
 
 ```bash
 curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
@@ -167,7 +167,7 @@ curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Meu receptor",
-    "url": "https://<project-ref>.supabase.co/functions/v1/cartsapp-webhook",
+    "url": "https://<project-ref>.supabase.co/functions/v1/coexy-webhook",
     "events": ["messages", "message_status"]
   }'
 ```
@@ -181,5 +181,5 @@ Salve o `hmac_secret` retornado e configure via `supabase secrets set` antes de 
 ## Logs
 
 ```bash
-supabase functions logs cartsapp-webhook --tail
+supabase functions logs coexy-webhook --tail
 ```

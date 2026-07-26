@@ -66,7 +66,7 @@ curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Meu CRM",
-    "url": "https://meuapp.com/webhook/cartsapp",
+    "url": "https://meuapp.com/webhook/coexy",
     "events": ["messages", "message_status"]
   }'
 ```
@@ -139,7 +139,7 @@ DELETE /webhooks/:wid/channels/:cid
 
 ## Retry automático
 
-O Cartsapp tenta reenviar eventos em caso de falha:
+O Coexy tenta reenviar eventos em caso de falha:
 
 | Tentativa | Delay |
 |-----------|-------|

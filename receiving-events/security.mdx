@@ -5,7 +5,7 @@ description: Verificação de assinatura HMAC, resposta assíncrona e idempotên
 
 ## Verificação da assinatura HMAC
 
-Todo evento carrega o header `x-cartsapp-signature` com uma assinatura HMAC-SHA256 no formato `sha256=<hex>`.
+Todo evento carrega o header `x-coexy-signature` com uma assinatura HMAC-SHA256 no formato `sha256=<hex>`.
 
 **Rejeite qualquer requisição sem assinatura válida.**
 
@@ -48,10 +48,10 @@ async function verifySignature(
 export async function POST(request: Request): Promise<Response> {
   // 1. Ler o body como texto — ANTES de qualquer parse
   const body = await request.text()
-  const signature = request.headers.get('x-cartsapp-signature') ?? ''
+  const signature = request.headers.get('x-coexy-signature') ?? ''
 
   // 2. Verificar assinatura — rejeitar imediatamente se inválida
-  const valid = await verifySignature(body, signature, process.env.CARTSAPP_HMAC_SECRET!)
+  const valid = await verifySignature(body, signature, process.env.COEXY_HMAC_SECRET!)
   if (!valid) return new Response('Unauthorized', { status: 401 })
 
   const event = JSON.parse(body)
@@ -66,7 +66,7 @@ export async function POST(request: Request): Promise<Response> {
 
 ## Responda 200 antes de processar
 
-O Cartsapp aguarda **10 segundos** pela resposta. Se seu endpoint demorar mais, o evento é marcado como falha e reenviado.
+O Coexy aguarda **10 segundos** pela resposta. Se seu endpoint demorar mais, o evento é marcado como falha e reenviado.
 
 **Padrão correto: responda 200 imediatamente, processe em background.**
 
@@ -88,7 +88,7 @@ Em Supabase Edge Functions, use `EdgeRuntime.waitUntil()` para garantir que o pr
 
 ## Idempotência
 
-O Cartsapp pode reenviar o mesmo evento em caso de falha de rede ou timeout. Use o campo `wamid` como chave de idempotência.
+O Coexy pode reenviar o mesmo evento em caso de falha de rede ou timeout. Use o campo `wamid` como chave de idempotência.
 
 ```sql
 -- Nunca falha em duplicatas
@@ -110,8 +110,8 @@ await supabase
 
 | Variável de ambiente | Descrição |
 |---|---|
-| `CARTSAPP_HMAC_SECRET` | Retornado ao criar o webhook. Não pode ser recuperado — salve imediatamente. |
-| `CARTSAPP_API_KEY` | Gerado em **Configurações → API Keys**. Prefixo `crt_pk_`. |
+| `COEXY_HMAC_SECRET` | Retornado ao criar o webhook. Não pode ser recuperado — salve imediatamente. |
+| `COEXY_API_KEY` | Gerado em **Configurações → API Keys**. Prefixo `crt_pk_`. |
 
 **Nunca exponha essas credenciais no frontend, logs, ou repositórios públicos.**
 

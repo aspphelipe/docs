@@ -1,9 +1,9 @@
 ---
 title: Introdução
-description: Conecte seu sistema ao Cartsapp e receba mensagens WhatsApp em tempo real.
+description: Conecte seu sistema ao Coexy e receba mensagens WhatsApp em tempo real.
 ---
 
-O Cartsapp oferece duas formas de integração:
+O Coexy oferece duas formas de integração:
 
 <CardGroup cols={2}>
   <Card title="API de Gerenciamento" icon="gear" href="/api-reference/authentication">
@@ -17,13 +17,13 @@ O Cartsapp oferece duas formas de integração:
 ## Como funciona
 
 ```
-Usuário WhatsApp → Meta → Cartsapp → Webhook → Seu servidor
+Usuário WhatsApp → Meta → Coexy → Webhook → Seu servidor
 ```
 
-Quando uma mensagem chega em um dos seus canais, o Cartsapp envia um evento via POST para a URL configurada no seu webhook. Seu servidor recebe, verifica a assinatura HMAC, e processa.
+Quando uma mensagem chega em um dos seus canais, o Coexy envia um evento via POST para a URL configurada no seu webhook. Seu servidor recebe, verifica a assinatura HMAC, e processa.
 
 ## Pré-requisitos
 
-- Uma conta no [Cartsapp](https://cartsapp.com.br)
+- Uma conta no [Coexy](https://coexy.com.br)
 - Uma API Key (gerada em **Configurações → API Keys**)
 - Um servidor com endpoint HTTPS público para receber eventos

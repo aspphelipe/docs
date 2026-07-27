@@ -12,7 +12,7 @@ Guarde o valor — ele só é exibido uma vez.
 ## 2. Crie um canal
 
 ```bash
-curl -X POST https://<project-ref>.supabase.co/functions/v1/api/channels \
+curl -X POST https://api.coexy.com.br/functions/v1/api/channels \
   -H "x-api-key: crt_pk_sua-chave" \
   -H "Content-Type: application/json" \
   -d '{ "name": "Suporte Principal" }'
@@ -23,7 +23,7 @@ A resposta inclui `connect_url` — compartilhe esse link com o responsável pel
 ## 3. Crie um webhook
 
 ```bash
-curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
+curl -X POST https://api.coexy.com.br/functions/v1/api/webhooks \
   -H "x-api-key: crt_pk_sua-chave" \
   -H "Content-Type: application/json" \
   -d '{

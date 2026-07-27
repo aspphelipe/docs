@@ -30,7 +30,7 @@ GET /webhooks
 ```
 
 ```bash
-curl https://<project-ref>.supabase.co/functions/v1/api/webhooks \
+curl https://api.coexy.com.br/functions/v1/api/webhooks \
   -H "x-api-key: crt_pk_sua-chave"
 ```
 
@@ -61,7 +61,7 @@ POST /webhooks
 </ParamField>
 
 ```bash
-curl -X POST https://<project-ref>.supabase.co/functions/v1/api/webhooks \
+curl -X POST https://api.coexy.com.br/functions/v1/api/webhooks \
   -H "x-api-key: crt_pk_sua-chave" \
   -H "Content-Type: application/json" \
   -d '{
@@ -99,7 +99,7 @@ PATCH /webhooks/:id
 
 ```bash
 # Pausar
-curl -X PATCH https://<project-ref>.supabase.co/functions/v1/api/webhooks/uuid \
+curl -X PATCH https://api.coexy.com.br/functions/v1/api/webhooks/uuid \
   -H "x-api-key: crt_pk_sua-chave" \
   -H "Content-Type: application/json" \
   -d '{ "status": "paused" }'

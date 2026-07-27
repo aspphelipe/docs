@@ -35,7 +35,7 @@ GET /channels
 ```
 
 ```bash
-curl https://<project-ref>.supabase.co/functions/v1/api/channels \
+curl https://api.coexy.com.br/functions/v1/api/channels \
   -H "x-api-key: crt_pk_sua-chave"
 ```
 
@@ -54,7 +54,7 @@ POST /channels
 </ParamField>
 
 ```bash
-curl -X POST https://<project-ref>.supabase.co/functions/v1/api/channels \
+curl -X POST https://api.coexy.com.br/functions/v1/api/channels \
   -H "x-api-key: crt_pk_sua-chave" \
   -H "Content-Type: application/json" \
   -d '{ "name": "Suporte Principal" }'
@@ -73,7 +73,7 @@ GET /channels/:id
 ```
 
 ```bash
-curl https://<project-ref>.supabase.co/functions/v1/api/channels/uuid-do-canal \
+curl https://api.coexy.com.br/functions/v1/api/channels/uuid-do-canal \
   -H "x-api-key: crt_pk_sua-chave"
 ```
 
@@ -92,7 +92,7 @@ DELETE /channels/:id
 </ParamField>
 
 ```bash
-curl -X DELETE "https://<project-ref>.supabase.co/functions/v1/api/channels/uuid-do-canal?force=true" \
+curl -X DELETE "https://api.coexy.com.br/functions/v1/api/channels/uuid-do-canal?force=true" \
   -H "x-api-key: crt_pk_sua-chave"
 ```
 

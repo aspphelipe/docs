@@ -6,7 +6,7 @@ description: Como autenticar nas chamadas à API de Gerenciamento do Coexy.
 ## Base URL
 
 ```
-https://<project-ref>.supabase.co/functions/v1/api
+https://api.coexy.com.br/functions/v1/api
 ```
 
 ## API Key
@@ -14,7 +14,7 @@ https://<project-ref>.supabase.co/functions/v1/api
 Todas as requisições devem incluir o header `x-api-key` com sua chave de API.
 
 ```bash
-curl https://<project-ref>.supabase.co/functions/v1/api/channels \
+curl https://api.coexy.com.br/functions/v1/api/channels \
   -H "x-api-key: crt_pk_sua-chave"
 ```
 
@@ -48,11 +48,10 @@ if (response.status === 429) {
 
 ```typescript
 class CoexyClient {
-  private baseUrl: string
+  private baseUrl = 'https://api.coexy.com.br/functions/v1/api'
   private apiKey: string
 
-  constructor(projectRef: string, apiKey: string) {
-    this.baseUrl = `https://${projectRef}.supabase.co/functions/v1/api`
+  constructor(apiKey: string) {
     this.apiKey = apiKey
   }
 
@@ -80,7 +79,6 @@ class CoexyClient {
 }
 
 const coexy = new CoexyClient(
-  process.env.COEXY_PROJECT_REF!,
   process.env.COEXY_API_KEY!,
 )
 ```

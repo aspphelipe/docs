@@ -36,7 +36,8 @@
         "pages": [
           "api-reference/authentication",
           "api-reference/channels",
-          "api-reference/webhooks"
+          "api-reference/webhooks",
+          "api-reference/meta-proxy"
         ]
       },
       {

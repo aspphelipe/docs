@@ -3,14 +3,17 @@ title: Introdução
 description: Conecte seu sistema ao Coexy e receba mensagens WhatsApp em tempo real.
 ---
 
-O Coexy oferece duas formas de integração:
+O Coexy oferece três formas de integração:
 
-<CardGroup cols={2}>
+<CardGroup cols={3}>
   <Card title="API de Gerenciamento" icon="gear" href="/api-reference/authentication">
-    Crie canais, configure webhooks e gerencie sua conta via REST API.
+    Crie canais e configure webhooks via REST API.
+  </Card>
+  <Card title="Enviar Mensagens" icon="paper-plane" href="/api-reference/meta-proxy">
+    Envie mensagens WhatsApp via meta-proxy sem gerenciar tokens Meta.
   </Card>
   <Card title="Receber Eventos" icon="bolt" href="/receiving-events/overview">
-    Receba mensagens e atualizações de status em tempo real no seu servidor.
+    Receba mensagens e status em tempo real no seu servidor.
   </Card>
 </CardGroup>
 
@@ -18,12 +21,26 @@ O Coexy oferece duas formas de integração:
 
 ```
 Usuário WhatsApp → Meta → Coexy → Webhook → Seu servidor
+                                ↑
+                     meta-proxy ← Seu servidor
 ```
 
-Quando uma mensagem chega em um dos seus canais, o Coexy envia um evento via POST para a URL configurada no seu webhook. Seu servidor recebe, verifica a assinatura HMAC, e processa.
+- **Receber:** quando uma mensagem chega, o Coexy entrega via POST para sua URL de webhook
+- **Enviar:** seu servidor chama o meta-proxy com o `channel_token` e o Coexy encaminha para a Meta
+
+## Por onde começar
+
+<CardGroup cols={2}>
+  <Card title="Lovable / Bolt / Cursor" icon="wand-magic-sparkles" href="/receiving-events/supabase">
+    Use a Edge Function pronta para Supabase — zero configuração de servidor.
+  </Card>
+  <Card title="Backend próprio" icon="code" href="/quickstart">
+    Node.js, Python, Go ou qualquer linguagem — siga o Quick Start.
+  </Card>
+</CardGroup>
 
 ## Pré-requisitos
 
 - Uma conta no [Coexy](https://coexy.com.br)
 - Uma API Key (gerada em **Configurações → API Keys**)
-- Um servidor com endpoint HTTPS público para receber eventos
+- Um endpoint HTTPS público para receber eventos (ou uma Supabase Edge Function)

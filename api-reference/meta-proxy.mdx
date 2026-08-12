@@ -1,0 +1,123 @@
+---
+title: Meta Proxy
+description: Envie mensagens e chame a API da Meta sem gerenciar tokens diretamente.
+---
+
+O meta-proxy é um relay autenticado: você faz a chamada com seu `channel_token`, e o Coexy injeta o token de acesso Meta real antes de encaminhar para a API da Meta. Seus tokens Meta nunca ficam expostos no seu código.
+
+## A regra de ouro
+
+<Info>
+**Para qualquer chamada à Meta Graph API**, substitua apenas dois elementos:
+
+| Original | Via Coexy |
+|---------|-----------|
+| `https://graph.facebook.com/v23.0/` | `https://api.coexy.com.br/functions/v1/meta-proxy/` |
+| `Authorization: Bearer <meta-access-token>` | `Authorization: Bearer <channel_token>` |
+
+O restante — método HTTP, path, query params, body e campos — segue exatamente a [documentação oficial da Meta](https://developers.facebook.com/docs/whatsapp/cloud-api/reference).
+</Info>
+
+## Autenticação
+
+```
+Base URL: https://api.coexy.com.br/functions/v1/meta-proxy
+Header:   Authorization: Bearer <channel_token>
+```
+
+O `channel_token` identifica um canal específico. Encontre-o em **Painel Coexy → Canais → detalhe do canal**, ou no campo `channel_token` da resposta de `GET /api/channels`.
+
+<Warning>
+O `channel_token` é diferente da `COEXY_API_KEY`. Não os misture.
+</Warning>
+
+## Exemplos
+
+### Listar templates
+
+```bash
+curl "https://api.coexy.com.br/functions/v1/meta-proxy/{waba_id}/message_templates?fields=name,status,category,language,components" \
+  -H "Authorization: Bearer <channel_token>"
+```
+
+### Enviar mensagem de texto
+
+```bash
+curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/messages" \
+  -H "Authorization: Bearer <channel_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messaging_product": "whatsapp",
+    "to": "5511999999999",
+    "type": "text",
+    "text": { "body": "Olá! Como posso ajudar?" }
+  }'
+```
+
+### Enviar template com variável
+
+```bash
+curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/messages" \
+  -H "Authorization: Bearer <channel_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messaging_product": "whatsapp",
+    "to": "5511999999999",
+    "type": "template",
+    "template": {
+      "name": "nome_do_template",
+      "language": { "code": "pt_BR" },
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            { "type": "text", "text": "João Silva" }
+          ]
+        }
+      ]
+    }
+  }'
+```
+
+<Tip>
+O `waba_id` e o `phone_number_id` do canal estão disponíveis nos campos correspondentes da resposta de `GET /api/channels/:id`.
+</Tip>
+
+## Idempotência no envio
+
+Para evitar envios duplicados em caso de retry, inclua `idempotency_key` no body:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "5511999999999",
+  "type": "text",
+  "text": { "body": "Confirmação do pedido #42" },
+  "idempotency_key": "pedido-42-confirmacao"
+}
+```
+
+O Coexy remove o campo antes de encaminhar para a Meta e garante que a mesma mensagem não seja enviada duas vezes com a mesma chave.
+
+## Segurança — nunca chame o meta-proxy direto do frontend
+
+<Warning>
+**Se você usa Lovable, Bolt, Cursor ou qualquer plataforma que gera código React**, nunca chame o meta-proxy diretamente do frontend. O `channel_token` ficaria visível no browser para qualquer usuário.
+
+```
+❌ Frontend React  →  https://api.coexy.com.br/functions/v1/meta-proxy/...
+✅ Frontend React  →  Supabase Edge Function  →  https://api.coexy.com.br/functions/v1/meta-proxy/...
+```
+
+Crie uma Edge Function no Supabase para cada operação (ex: `send-whatsapp-message`). O frontend chama sua Edge Function via `supabase.functions.invoke()`, e a Edge Function usa o secret para chamar o Coexy. As credenciais nunca chegam ao browser.
+</Warning>
+
+## Erros
+
+| Status | `error` | Causa |
+|--------|---------|-------|
+| `401` | `Authorization header required` | Header ausente |
+| `401` | `Invalid channel token` | Token inválido |
+| `403` | `Channel is not active` | Canal desconectado ou inativo |
+| `429` | `Rate limit exceeded` | Limite de 100 req/min por canal |
+| `503` | `CHANNEL_DISCONNECTED` | Token Meta expirou — reconectar no painel Coexy |

@@ -3,7 +3,11 @@ title: Supabase Edge Function
 description: Implementação completa do receptor de eventos usando Supabase Edge Functions.
 ---
 
-Se seu backend é Supabase, implemente o receptor como uma Edge Function. O Deno runtime suporta a Web Crypto API nativamente — sem dependências extras para HMAC.
+Se você usa **Lovable, Bolt, Cursor ou qualquer plataforma com Supabase**, este é o caminho correto. O Deno runtime suporta a Web Crypto API nativamente — sem dependências extras para HMAC.
+
+<Warning>
+**Nunca chame a API do Coexy diretamente do frontend React.** Credenciais no código React ficam visíveis no browser para qualquer usuário. Use sempre Edge Functions como intermediárias — as credenciais ficam nos secrets do servidor.
+</Warning>
 
 ## Estrutura de arquivos
 
@@ -88,19 +92,37 @@ async function verifySignature(
   return crypto.subtle.verify('HMAC', key, expectedBytes, encoder.encode(body))
 }
 
-async function processEvent(event: Record<string, unknown>): Promise<void> {
-  if (event.event === 'messages') {
-    const data = event.data as Record<string, unknown>
-    await supabase.from('messages').upsert({
-      wamid:       data.wamid,
-      channel_id:  event.channel_id,
-      from_number: data.from,
-      type:        data.type ?? 'text',
-      body:        (data.text as Record<string, string> | undefined)?.body ?? null,
-      received_at: new Date(parseInt(data.timestamp as string) * 1000).toISOString(),
-    }, { onConflict: 'wamid', ignoreDuplicates: true })
+async function processEvent(payload: Record<string, unknown>): Promise<void> {
+  // O payload segue o formato nativo da Meta: entry[].changes[].value
+  const entries = (payload.entry as Array<{ changes?: unknown[] }>) ?? []
+
+  for (const entry of entries) {
+    for (const change of entry.changes ?? []) {
+      const value = (change as { value: Record<string, unknown> }).value
+
+      // Mensagens recebidas
+      for (const msg of (value.messages as unknown[]) ?? []) {
+        const m = msg as Record<string, unknown>
+        await supabase.from('messages').upsert({
+          wamid:       m.id,
+          from_number: m.from,
+          type:        m.type ?? 'text',
+          body:        (m.text as Record<string, string> | undefined)?.body ?? null,
+          payload:     m,
+          received_at: new Date(Number(m.timestamp) * 1000).toISOString(),
+        }, { onConflict: 'wamid', ignoreDuplicates: true })
+      }
+
+      // Status de mensagens enviadas
+      for (const st of (value.statuses as unknown[]) ?? []) {
+        const s = st as Record<string, unknown>
+        await supabase
+          .from('messages')
+          .update({ status: s.status })
+          .eq('wamid', s.id)
+      }
+    }
   }
-  // Adicione outros handlers conforme necessário
 }
 
 Deno.serve(async (req: Request) => {

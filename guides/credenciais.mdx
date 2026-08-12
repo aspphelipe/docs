@@ -1,0 +1,131 @@
+---
+title: Onde encontrar suas credenciais
+description: Passo a passo para localizar API Key, channel_token, waba_id e phone_number_id no painel Coexy.
+---
+
+Você vai precisar de quatro valores para usar a API do Coexy. Este guia mostra exatamente onde encontrar cada um no painel.
+
+---
+
+## 1. API Key (`COEXY_API_KEY`)
+
+Usada em todas as chamadas à **Management API** (`/api/*`).
+
+**Caminho:** Menu lateral → **API Keys** → **Nova chave**
+
+<Steps>
+  <Step title="Acesse API Keys">
+    No menu lateral do painel, clique em **API Keys**.
+  </Step>
+  <Step title="Crie uma nova chave">
+    Clique em **Nova chave**, digite um nome (ex: "Meu CRM") e clique em **Criar chave**.
+  </Step>
+  <Step title="Copie imediatamente">
+    A chave completa (`crt_pk_...`) é exibida **apenas uma vez**. Copie e salve em local seguro antes de fechar.
+  </Step>
+</Steps>
+
+<Warning>
+Se fechar sem copiar, não há como recuperar. Delete e crie uma nova.
+</Warning>
+
+---
+
+## 2. Channel Token (`channel_token`)
+
+Usado nas chamadas ao **meta-proxy** (`/meta-proxy/*`) para enviar mensagens.
+
+**Caminho:** Menu lateral → **Canais** → clique no canal → aba **API**
+
+<Steps>
+  <Step title="Acesse Canais">
+    No menu lateral, clique em **Canais**.
+  </Step>
+  <Step title="Abra o detalhe do canal">
+    No card do canal desejado, clique em **Configurar**.
+  </Step>
+  <Step title="Vá para a aba API">
+    Clique na aba **API**. O card **"Seu Token de Canal"** exibe o token completo com botão de copiar.
+  </Step>
+</Steps>
+
+<Tip>
+Na lista de canais, o token aparece truncado (`ch_1a2b3c...`). Para o valor completo, use sempre a aba API do detalhe.
+</Tip>
+
+---
+
+## 3. WABA ID (`waba_id`)
+
+ID da sua conta WhatsApp Business na Meta. Necessário para listar e criar templates.
+
+**Caminho:** Menu lateral → **Canais** → clique no canal → aba **Configurações**
+
+<Steps>
+  <Step title="Abra o detalhe do canal">
+    Na lista de canais, clique em **Configurar** no canal desejado.
+  </Step>
+  <Step title="Vá para a aba Configurações">
+    Clique na aba **Configurações**. Na seção **Conexão WhatsApp**, localize o card **WABA ID**.
+  </Step>
+</Steps>
+
+<Note>
+O WABA ID só aparece **após o número ser conectado**. Se o canal ainda está pendente, o card não será exibido.
+</Note>
+
+---
+
+## 4. Phone Number ID (`phone_number_id`)
+
+ID do número de telefone na Meta. Usado como `{entity_id}` nas chamadas de envio de mensagem.
+
+**Caminho:** Menu lateral → **Canais** → clique no canal → aba **API**
+
+<Steps>
+  <Step title="Abra o detalhe do canal">
+    Na lista de canais, clique em **Configurar**.
+  </Step>
+  <Step title="Vá para a aba API">
+    Clique na aba **API**. Os exemplos de curl já mostram o `phone_number_id` real do canal preenchido nos comandos.
+  </Step>
+</Steps>
+
+<Note>
+Assim como o WABA ID, o `phone_number_id` só é preenchido após conectar o número. Antes disso, os exemplos mostram o placeholder `{phone_number_id}`.
+</Note>
+
+---
+
+## 5. Como conectar um número WhatsApp
+
+Antes de ter o `waba_id` e o `phone_number_id`, você precisa conectar um número ao canal.
+
+<Steps>
+  <Step title="Crie um canal">
+    Em **Canais**, clique em **Novo Canal**, dê um nome e confirme.
+  </Step>
+  <Step title="Obtenha o link de conexão">
+    No card do canal recém-criado, clique no botão de **Compartilhar** (ícone de share) para copiar o link, ou clique em **Configurar** → **Conectar WhatsApp**.
+  </Step>
+  <Step title="Acesse o link">
+    Abra o link copiado. Você verá a página de conexão do Coexy com o botão **Conectar WhatsApp Business**.
+  </Step>
+  <Step title="Autorize via Meta">
+    Clique no botão. Uma janela da Meta abrirá — siga o fluxo de WhatsApp Embedded Signup para autorizar o número.
+  </Step>
+  <Step title="Conexão concluída">
+    Após autorizar, o painel exibirá **"WhatsApp Conectado!"**. O canal agora terá `waba_id`, `phone_number_id` e `display_phone_number` preenchidos.
+  </Step>
+</Steps>
+
+---
+
+## Resumo
+
+| Credencial | Onde encontrar | Quando está disponível |
+|-----------|---------------|----------------------|
+| `COEXY_API_KEY` | **API Keys** → Nova chave | Imediatamente |
+| `channel_token` | Detalhe do canal → aba **API** | Imediatamente após criar o canal |
+| `waba_id` | Detalhe do canal → aba **Configurações** | Após conectar o número |
+| `phone_number_id` | Detalhe do canal → aba **API** (nos exemplos) | Após conectar o número |

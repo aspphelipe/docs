@@ -32,6 +32,10 @@
         "pages": ["index", "quickstart"]
       },
       {
+        "group": "Guias",
+        "pages": ["guides/credenciais"]
+      },
+      {
         "group": "API de Gerenciamento",
         "pages": [
           "api-reference/authentication",

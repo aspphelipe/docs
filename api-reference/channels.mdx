@@ -13,8 +13,9 @@ type Channel = {
   name:                 string
   status:               'pending' | 'active' | 'inactive'
   display_phone_number: string | null // ex: "+55 11 99999-9999"
-  phone_number_id:      string | null // ID do número na Meta
-  channel_token:        string        // token do link de conexão
+  phone_number_id:      string | null // ID do número na Meta — usar como {entity_id} no meta-proxy para enviar mensagens
+  waba_id:              string | null // ID da conta WhatsApp Business — usar como {entity_id} no meta-proxy para templates
+  channel_token:        string        // Bearer token do meta-proxy (Authorization: Bearer) e token do link de conexão
   connect_url:          string        // https://coexy.com.br/connect/<token>
   connected_at:         string | null // ISO 8601
   token_expires_at:     string | null // ISO 8601 — link expira após este prazo

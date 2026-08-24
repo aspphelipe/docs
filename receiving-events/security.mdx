@@ -42,6 +42,26 @@ async function verifySignature(
 **Não use comparação de string direta** (`signature === expected`). A Web Crypto API com `crypto.subtle.verify` usa comparação em tempo constante, prevenindo timing attacks. Nunca reimplemente isso manualmente.
 </Warning>
 
+### Python
+
+```python
+import hmac
+import hashlib
+
+def verify_signature(body: bytes, signature_header: str, secret: str) -> bool:
+    if not signature_header.startswith("sha256="):
+        return False
+
+    expected_hex = signature_header[7:]
+    computed = hmac.new(
+        secret.encode("utf-8"),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(computed, expected_hex)
+```
+
 ### Usando no endpoint
 
 ```typescript

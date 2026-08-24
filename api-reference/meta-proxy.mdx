@@ -112,12 +112,39 @@ O Coexy remove o campo antes de encaminhar para a Meta e garante que a mesma men
 Crie uma Edge Function no Supabase para cada operação (ex: `send-whatsapp-message`). O frontend chama sua Edge Function via `supabase.functions.invoke()`, e a Edge Function usa o secret para chamar o Coexy. As credenciais nunca chegam ao browser.
 </Warning>
 
+## Exemplos em Python
+
+### Enviar mensagem de texto
+
+```python
+import httpx
+
+response = httpx.post(
+    f"https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/messages",
+    headers={
+        "Authorization": f"Bearer {channel_token}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "messaging_product": "whatsapp",
+        "to": "5511999999999",
+        "type": "text",
+        "text": {"body": "Olá! Como posso ajudar?"},
+    },
+)
+print(response.json())
+```
+
 ## Erros
 
-| Status | `error` | Causa |
-|--------|---------|-------|
-| `401` | `Authorization header required` | Header ausente |
-| `401` | `Invalid channel token` | Token inválido |
-| `403` | `Channel is not active` | Canal desconectado ou inativo |
-| `429` | `Rate limit exceeded` | Limite de 100 req/min por canal |
-| `503` | `CHANNEL_DISCONNECTED` | Token Meta expirou — reconectar no painel Coexy |
+| Status | `error` | Causa | O que fazer |
+|--------|---------|-------|-------------|
+| `401` | `Authorization header required` | Header `Authorization` ausente | Adicionar `Authorization: Bearer <channel_token>` |
+| `401` | `Invalid channel token` | Token inválido ou canal não existe | Verificar o `channel_token` no painel ou via `GET /api/channels` |
+| `403` | `Channel is not active` | Canal desconectado ou suspenso | Verificar status do canal; se `disconnected`, reconectar via `connect_url` |
+| `429` | `Rate limit exceeded` | Limite de 100 req/min por canal | Aguardar o tempo indicado no header `Retry-After` |
+| `503` | `CHANNEL_DISCONNECTED` | Token Meta foi revogado (ex: mudança de senha, remoção de permissão) | **Não recrie o canal.** Acesse o `connect_url` para reconectar. Webhooks e configurações são preservados. |
+
+<Info>
+**Sobre o erro 503:** Em operação normal, o Coexy renova tokens automaticamente e você nunca verá esse erro. Ele só ocorre quando a Meta revoga o acesso por motivos externos (ex: o dono do número removeu a permissão do app).
+</Info>

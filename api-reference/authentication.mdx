@@ -1,6 +1,6 @@
 ---
 title: Autenticação
-description: Como autenticar nas chamadas à API de Gerenciamento do Coexy.
+description: Como autenticar nas chamadas à API de Canais e Webhooks do Coexy.
 ---
 
 ## Base URL
@@ -81,4 +81,33 @@ class CoexyClient {
 const coexy = new CoexyClient(
   process.env.COEXY_API_KEY!,
 )
+```
+
+## Client Python recomendado
+
+```python
+import httpx
+import os
+
+class CoexyClient:
+    def __init__(self, api_key: str):
+        self.base_url = "https://api.coexy.com.br/functions/v1/api"
+        self.api_key = api_key
+
+    def request(self, method: str, path: str, body: dict | None = None) -> dict | None:
+        r = httpx.request(
+            method,
+            f"{self.base_url}{path}",
+            headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
+            json=body,
+        )
+        if r.status_code == 429:
+            retry = r.headers.get("Retry-After", "60")
+            raise Exception(f"Rate limit exceeded. Retry after {retry}s")
+        if r.status_code == 204:
+            return None
+        r.raise_for_status()
+        return r.json()
+
+coexy = CoexyClient(os.environ["COEXY_API_KEY"])
 ```

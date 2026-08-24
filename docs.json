@@ -29,23 +29,24 @@
     "pages": [
       {
         "group": "Introdução",
-        "pages": ["index", "quickstart"]
+        "pages": ["index", "quickstart", "guides/credenciais"]
       },
       {
-        "group": "Guias",
-        "pages": ["guides/credenciais"]
-      },
-      {
-        "group": "API de Gerenciamento",
+        "group": "Configurar (Canais & Webhooks)",
         "pages": [
           "api-reference/authentication",
           "api-reference/channels",
-          "api-reference/webhooks",
+          "api-reference/webhooks"
+        ]
+      },
+      {
+        "group": "Enviar Mensagens",
+        "pages": [
           "api-reference/meta-proxy"
         ]
       },
       {
-        "group": "Recebendo Eventos",
+        "group": "Receber Eventos",
         "pages": [
           "receiving-events/overview",
           "receiving-events/security",

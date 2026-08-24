@@ -119,13 +119,17 @@ Antes de ter o `waba_id` e o `phone_number_id`, você precisa conectar um númer
   </Step>
 </Steps>
 
+<Info>
+**Tokens são gerenciados automaticamente pelo Coexy.** Após conectar o WhatsApp, você não precisa se preocupar com renovação de tokens — o Coexy cuida disso. Em casos raros (ex: revogação de permissão na Meta), o canal muda para `disconnected` e você deve reconectar pelo mesmo `connect_url`.
+</Info>
+
 ---
 
 ## Resumo
 
-| Credencial | Onde encontrar | Quando está disponível |
-|-----------|---------------|----------------------|
-| `COEXY_API_KEY` | **API Keys** → Nova chave | Imediatamente |
-| `channel_token` | Detalhe do canal → aba **API** | Imediatamente após criar o canal |
-| `waba_id` | Detalhe do canal → aba **Configurações** | Após conectar o número |
-| `phone_number_id` | Detalhe do canal → aba **API** (nos exemplos) | Após conectar o número |
+| Credencial | Onde encontrar | Via API | Quando está disponível |
+|-----------|---------------|---------|----------------------|
+| `COEXY_API_KEY` | **API Keys** → Nova chave | — | Imediatamente |
+| `channel_token` | Detalhe do canal → aba **API** | `GET /api/channels` → campo `channel_token` | Após criar o canal |
+| `waba_id` | Detalhe do canal → aba **Configurações** | `GET /api/channels` → campo `waba_id` | Após conectar o número |
+| `phone_number_id` | Detalhe do canal → aba **API** | `GET /api/channels` → campo `phone_number_id` | Após conectar o número |

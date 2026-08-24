@@ -3,19 +3,27 @@ title: Introdução
 description: Conecte seu sistema ao Coexy e receba mensagens WhatsApp em tempo real.
 ---
 
-O Coexy oferece três formas de integração:
+A integração com o Coexy se resume a três fluxos:
 
 <CardGroup cols={3}>
-  <Card title="API de Gerenciamento" icon="gear" href="/api-reference/authentication">
-    Crie canais e configure webhooks via REST API.
+  <Card title="Configurar" icon="gear" href="/api-reference/channels">
+    Crie canais, conecte números WhatsApp e configure webhooks.
   </Card>
   <Card title="Enviar Mensagens" icon="paper-plane" href="/api-reference/meta-proxy">
-    Envie mensagens WhatsApp via meta-proxy sem gerenciar tokens Meta.
+    Envie mensagens WhatsApp via meta-proxy — sem gerenciar tokens Meta.
   </Card>
   <Card title="Receber Eventos" icon="bolt" href="/receiving-events/overview">
     Receba mensagens e status em tempo real no seu servidor.
   </Card>
 </CardGroup>
+
+<Warning>
+**O que NÃO fazer:**
+- Não invente endpoints de envio — use a mesma estrutura da [documentação da Meta](https://developers.facebook.com/docs/whatsapp/cloud-api/reference), trocando apenas a base URL e o token
+- Não chame `/meta-proxy` ou `/api` direto do frontend (React, Lovable, Bolt) — credenciais ficam expostas
+- Não confunda `COEXY_API_KEY` (Management API) com `channel_token` (Meta Proxy) — são credenciais diferentes
+- Não recrie o canal ao receber erro 503 — basta reconectar via `connect_url`
+</Warning>
 
 ## Como funciona
 

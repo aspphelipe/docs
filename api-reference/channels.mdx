@@ -11,17 +11,41 @@ Um canal representa um número WhatsApp conectado ao Coexy. Após criar um canal
 type Channel = {
   id:                   string        // UUID
   name:                 string
-  status:               'pending' | 'active' | 'inactive'
+  status:               'pending' | 'active' | 'disconnected' | 'suspended'
   display_phone_number: string | null // ex: "+55 11 99999-9999"
   phone_number_id:      string | null // ID do número na Meta — usar como {entity_id} no meta-proxy para enviar mensagens
   waba_id:              string | null // ID da conta WhatsApp Business — usar como {entity_id} no meta-proxy para templates
-  channel_token:        string        // Bearer token do meta-proxy (Authorization: Bearer) e token do link de conexão
+  channel_token:        string        // Bearer token do meta-proxy (Authorization: Bearer)
   connect_url:          string        // https://coexy.com.br/connect/<token>
   connected_at:         string | null // ISO 8601
-  token_expires_at:     string | null // ISO 8601 — link expira após este prazo
+  token_expires_at:     string | null // ISO 8601
   created_at:           string        // ISO 8601
 }
 ```
+
+## Status do canal
+
+| Status | Significado |
+|--------|------------|
+| `pending` | Canal criado, aguardando conexão do número WhatsApp via `connect_url` |
+| `active` | Conectado e funcionando — tokens são renovados automaticamente pelo Coexy |
+| `disconnected` | Token revogado pela Meta (ex: mudança de senha, remoção de permissão) — requer reconexão via `connect_url` |
+| `suspended` | Suspenso administrativamente |
+
+<Info>
+**Tokens são gerenciados automaticamente pelo Coexy.** Após conectar o WhatsApp, você não precisa se preocupar com renovação de tokens — o Coexy cuida disso. Em casos raros (ex: revogação de permissão na Meta), o canal muda para `disconnected` e você deve reconectar pelo `connect_url`.
+</Info>
+
+## Fluxo de conexão
+
+1. Crie o canal via `POST /channels` — ele nasce com status `pending`
+2. Compartilhe o `connect_url` com o dono do número WhatsApp
+3. O dono acessa o link e autoriza via WhatsApp Embedded Signup
+4. O canal muda para `active` e os campos `phone_number_id`, `waba_id` e `display_phone_number` são preenchidos
+
+<Warning>
+`phone_number_id` e `waba_id` só ficam disponíveis **após a conexão**. Antes disso, são `null`.
+</Warning>
 
 ## Endpoints
 

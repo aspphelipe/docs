@@ -12,7 +12,7 @@ type WebhookConfig = {
   id:          string
   name:        string
   url:         string                              // sempre HTTPS
-  events:      Array<'messages' | 'message_status' | 'message_template_status_update'>
+  events:      Array<'messages' | 'message_template_status_update'>
   status:      'active' | 'paused'
   hmac_secret: string                              // guardar no .env — não muda
   scope:       'org' | 'channels'                 // org = todos os canais
@@ -53,7 +53,7 @@ POST /webhooks
 </ParamField>
 
 <ParamField body="events" type="string[]" required>
-  Eventos a receber. Valores: `messages`, `message_status`, `message_template_status_update`. Por padrão, todos são selecionados.
+  Eventos a receber. Valores: `messages` (inclui mensagens recebidas e status de entrega), `message_template_status_update` (aprovação/rejeição de templates). Por padrão, todos são selecionados.
 </ParamField>
 
 <ParamField body="channel_ids" type="string[]">
@@ -67,7 +67,7 @@ curl -X POST https://api.coexy.com.br/functions/v1/api/webhooks \
   -d '{
     "name": "Meu CRM",
     "url": "https://meuapp.com/webhook/coexy",
-    "events": ["messages", "message_status", "message_template_status_update"]
+    "events": ["messages", "message_template_status_update"]
   }'
 ```
 
@@ -157,5 +157,5 @@ Seu endpoint tem **10 segundos** para responder com status 2xx. Responda sempre 
 |--------|----------|-------|
 | `404` | `Webhook not found` | ID não existe ou não pertence à sua org |
 | `422` | `"url" must start with https://` | URL sem HTTPS |
-| `422` | `"events" values must be one of: messages, message_status, message_template_status_update` | Evento inválido |
+| `422` | `"events" values must be one of: messages, message_template_status_update` | Evento inválido |
 | `422` | `One or more channel_ids not found in this org` | Canal não pertence à sua org |

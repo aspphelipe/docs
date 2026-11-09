@@ -1,0 +1,108 @@
+---
+title: MCP (Claude Code, Codex, Cursor)
+description: Conecte ferramentas de IA aos canais da sua organização e à documentação da Coexy.
+---
+
+O MCP da Coexy permite que o Claude Code, o Codex, o Cursor e outras ferramentas compatíveis com o Model Context
+Protocol consultem e gerenciem os canais da sua organização e leiam esta documentação enquanto escrevem a sua
+integração.
+
+- **URL:** `https://api.coexy.com.br/functions/v1/mcp` (Streamable HTTP)
+- **Autenticação:** API Key da organização, no header `x-api-key` ou em `Authorization: Bearer <api_key>`
+
+A API Key dá acesso a toda a organização. Crie uma chave só para a IA em **API Keys** no painel e revogue quando não
+precisar mais.
+
+## Conectar
+
+### Claude Code
+
+```bash
+claude mcp add --transport http coexy https://api.coexy.com.br/functions/v1/mcp \
+  --header "x-api-key: crt_pk_sua-chave"
+```
+
+### Codex
+
+Em `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.coexy]
+url = "https://api.coexy.com.br/functions/v1/mcp"
+bearer_token_env_var = "COEXY_API_KEY"
+```
+
+E defina a variável de ambiente `COEXY_API_KEY` com a sua API Key.
+
+### Cursor
+
+Em `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "coexy": {
+      "url": "https://api.coexy.com.br/functions/v1/mcp",
+      "headers": { "x-api-key": "crt_pk_sua-chave" }
+    }
+  }
+}
+```
+
+## Ferramentas
+
+| Ferramenta | O que faz |
+|---|---|
+| `channels_list` | Lista os canais com status, número, saúde e o `connect_url` dos que ainda não estão conectados. Filtro opcional por `status`. |
+| `channels_get` | Detalhe de um canal: saúde e motivos de bloqueio, limite de mensagens, qualidade, pagamento na Meta, coexistência, verificação e `channel_token`. |
+| `channels_create` | Cria um canal pendente e devolve o `connect_url` para o dono do número conectar. |
+| `channels_rename` | Renomeia um canal. |
+| `channels_delete` | Apaga um canal pendente ou desconectado. Canais ativos são desconectados pelo painel. |
+| `webhooks_list` | Lista os webhooks com URL, eventos, status e canais vinculados. |
+| `webhooks_get` | Detalhe de um webhook: segredo da assinatura `X-Coexy-Signature` e entregas das últimas 24 horas. |
+| `webhooks_create` | Cria um webhook com URL, eventos e, opcionalmente, os canais. |
+| `webhooks_update` | Altera nome, URL, eventos ou pausa e reativa o webhook. |
+| `webhooks_delete` | Apaga um webhook. |
+| `webhooks_set_channels` | Define os canais do webhook (vazio = todos os canais da organização). |
+| `webhooks_deliveries` | Lista as entregas recentes, com filtro por status. |
+| `webhooks_delivery_get` | Detalhe de uma entrega, com o payload. |
+| `webhooks_delivery_retry` | Reenvia uma entrega que falhou. |
+| `webhooks_send_test` | Envia um evento de teste assinado para a URL do webhook e mostra a resposta. |
+| `templates_list` | Lista os templates com categoria, idioma e o status na Meta por canal. Filtros por status, canal e nome. |
+| `templates_get` | Detalhe de um template: conteúdo, status e erro por canal e os valores que o envio pede (`send_requirements`). |
+| `templates_create` | Cria o template como rascunho (um por idioma), com as mesmas regras do editor. Cabeçalho de imagem, vídeo ou documento recebe o link do arquivo de exemplo em `header.media_url`. |
+| `templates_update` | Edita um template que ainda não foi criado na Meta. |
+| `templates_delete` | Apaga o template na Coexy (na Meta ele continua). |
+| `templates_submit` | Envia o template para a Meta pelos canais escolhidos e devolve o status de cada um. |
+| `templates_sync` | Traz para a Coexy os templates que já existem na Meta. |
+| `templates_send_test` | Envia um template aprovado para um número, com os valores das variáveis, e devolve o payload usado. |
+| `flows_reference` | Documentação oficial da Meta sobre WhatsApp Flows (componentes, Flow JSON, versões, boas práticas e Flows de exemplo). |
+| `flows_validate` | Valida um Flow JSON e devolve erros e avisos com o caminho, sem salvar. |
+| `flows_list` | Lista os Flows com status, versão e status por canal. |
+| `flows_get` | Detalhe de um Flow: Flow JSON, problemas, publicações por canal, o payload para enviar o Flow publicado e, com endpoint, o contrato do que a sua URL recebe e responde. |
+| `flows_create` | Cria um Flow em rascunho e, com canal de teste, valida na Meta. |
+| `flows_update` | Edita nome, categorias, Flow JSON (só em rascunho) e canal de teste. |
+| `flows_preview` | Link da prévia interativa da Meta. |
+| `flows_send_test` | Envia o rascunho para um número pelo canal de teste. |
+| `flows_publish` | Publica a versão atual nos canais escolhidos. |
+| `flows_new_version` | Cria o rascunho da próxima versão de um Flow publicado. |
+| `flows_deprecate` | Aposenta as cópias publicadas. |
+| `flows_delete` | Exclui um Flow sem cópias publicadas. |
+| `flows_import` | Traz os Flows que já existem na Meta. |
+| `flows_set_endpoint` | Configura o endpoint dos Flows com dados dinâmicos: Coexy repassando para a sua URL, seu servidor ou nenhum. |
+| `flows_test_endpoint` | Envia uma requisição de teste assinada para a URL do endpoint. |
+| `flows_channel_encryption` | Registra no número a chave pública da Coexy ou a do seu servidor. |
+| `support_report` | Envia à equipe da Coexy o relato de uma falha da plataforma, sem dados sensíveis, e devolve um protocolo. A IA pergunta antes de enviar. |
+| `support_report_status` | Mostra o andamento de um relato pelo protocolo. |
+| `docs_get` | Lê esta documentação (sem `topic`, lista os tópicos). |
+
+Quando uma ferramenta falha por erro interno, a Coexy registra o problema sozinha e a mensagem de erro traz o protocolo para acompanhar com `support_report_status`.
+
+## Exemplos de pedidos
+
+- "Liste os canais da Coexy e me diga quais não podem enviar mensagens e por quê."
+- "Crie um canal chamado Suporte e me dê o link de conexão."
+- "Crie um template de utilidade avisando que o boleto vence amanhã, envie para o canal Vendas e me avise quando for aprovado."
+- "Crie um Flow de pesquisa de satisfação com nota de 1 a 5 e um campo de comentário, me mande um teste e publique no canal Suporte."
+- "Cadastre um webhook para https://meu-sistema.com/whatsapp com mensagens recebidas e envie um evento de teste."
+- "Usando a documentação da Coexy, escreva a função que envia o template de confirmação de pedido pelo canal Vendas."

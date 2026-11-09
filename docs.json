@@ -29,7 +29,7 @@
     "pages": [
       {
         "group": "Introdução",
-        "pages": ["index", "quickstart", "guides/credenciais"]
+        "pages": ["index", "quickstart", "guides/credenciais", "mcp-coexy"]
       },
       {
         "group": "Configurar (Canais & Webhooks)",
@@ -42,8 +42,13 @@
       {
         "group": "Enviar Mensagens",
         "pages": [
-          "api-reference/meta-proxy"
+          "api-reference/meta-proxy",
+          "api-reference/otp-templates"
         ]
+      },
+      {
+        "group": "WhatsApp Flows",
+        "pages": ["flows-endpoint"]
       },
       {
         "group": "Receber Eventos",

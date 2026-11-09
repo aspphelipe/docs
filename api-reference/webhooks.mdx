@@ -12,7 +12,7 @@ type WebhookConfig = {
   id:          string
   name:        string
   url:         string                              // sempre HTTPS
-  events:      Array<'messages' | 'message_template_status_update'>
+  events:      WebhookEvent[]                      // ver lista abaixo
   status:      'active' | 'paused'
   hmac_secret: string                              // guardar no .env — não muda
   scope:       'org' | 'channels'                 // org = todos os canais
@@ -52,8 +52,8 @@ POST /webhooks
   URL do seu endpoint. Deve começar com `https://`.
 </ParamField>
 
-<ParamField body="events" type="string[]" required>
-  Eventos a receber. Valores: `messages` (inclui mensagens recebidas e status de entrega), `message_template_status_update` (aprovação/rejeição de templates). Por padrão, todos são selecionados.
+<ParamField body="events" type="string[]">
+  Eventos a receber. Opcional; padrão `['messages']`. Valores na seção "Eventos disponíveis" abaixo.
 </ParamField>
 
 <ParamField body="channel_ids" type="string[]">
@@ -67,7 +67,7 @@ curl -X POST https://api.coexy.com.br/functions/v1/api/webhooks \
   -d '{
     "name": "Meu CRM",
     "url": "https://meuapp.com/webhook/coexy",
-    "events": ["messages", "message_template_status_update"]
+    "events": ["messages", "channel_status_update"]
   }'
 ```
 
@@ -87,14 +87,28 @@ GET /webhooks/:id
 
 ---
 
-### Pausar / reativar webhook
+### Atualizar, pausar ou reativar webhook
 
 ```bash
 PATCH /webhooks/:id
 ```
 
-<ParamField body="status" type="string" required>
+Envie só os campos que quer mudar (pelo menos um).
+
+<ParamField body="status" type="string">
   `"active"` ou `"paused"`
+</ParamField>
+
+<ParamField body="name" type="string">
+  Novo nome
+</ParamField>
+
+<ParamField body="url" type="string">
+  Nova URL, começando com `https://`
+</ParamField>
+
+<ParamField body="events" type="string[]">
+  Nova lista de eventos (não vazia). Substitui a lista atual.
 </ParamField>
 
 ```bash
@@ -137,17 +151,95 @@ DELETE /webhooks/:wid/channels/:cid
 
 **Resposta:** `204 No Content`
 
+## Eventos disponíveis
+
+| Evento | Origem | O que traz |
+|--------|--------|-----------|
+| `messages` | Meta | Mensagens recebidas e status das enviadas (`sent`, `delivered`, `read`, `failed`) |
+| `smb_message_echoes` | Meta | Mensagens enviadas pelo app WhatsApp Business no celular (coexistência). Alias: `message_echoes` |
+| `message_template_status_update` | Meta | Status de templates (aprovado, rejeitado, pausado, desativado) |
+| `message_template_quality_update` | Meta | Qualidade de templates |
+| `phone_number_quality_update` | Meta | Qualidade e limite de mensagens do número |
+| `phone_number_name_update` | Meta | Resultado da revisão do nome de exibição |
+| `account_alerts` | Meta | Alertas da conta WhatsApp Business |
+| `account_update` | Meta | Mudanças na conta (banimento, restrição, remoção do parceiro, desconexão no app) |
+| `account_review_update` | Meta | Revisão da conta |
+| `flows` | Meta | Eventos de WhatsApp Flows |
+| `security` | Meta | Eventos de segurança do número |
+| `smb_app_state_sync` | Meta | Coexistência: contatos da agenda do app WhatsApp Business |
+| `history` | Meta | Coexistência: histórico de conversas (até 180 dias) |
+| `channel_status_update` | Coexy | Status do canal: conectado, desconectado, suspenso |
+| `channel_health_update` | Coexy | Saúde do número: restrito, bloqueado, banido, qualidade |
+
+Eventos de origem **Meta** chegam no formato nativo da WhatsApp Cloud API. Eventos de origem **Coexy** têm formato próprio, descrito abaixo.
+
+## Evento channel_status_update
+
+Evento próprio do Coexy (não vem da Meta), enviado quando o status de um canal muda: conexão concluída (`pending` → `active`), desconexão (`disconnected`) ou suspensão (`suspended`). Assine com `events: ['channel_status_update']`. Use-o no lugar de consultar `GET /api/channels/:id` periodicamente. Chega em até ~1 minuto após a mudança, com a mesma assinatura `X-Coexy-Signature`.
+
+```json
+{
+  "event": "channel_status_update",
+  "channel_id": "uuid",
+  "channel_type": "whatsapp",
+  "name": "Sala Centro",
+  "previous_status": "pending",
+  "status": "active",
+  "phone_number_id": "1128059963726893",
+  "waba_id": "1517032953486921",
+  "display_phone_number": "+55 11 99999-9999",
+  "changed_at": "2026-10-29T14:03:00Z"
+}
+```
+
+> Quando `status` virar `active`, `phone_number_id` e `waba_id` já vêm preenchidos. Se virar `disconnected`, reconecte pelo `connect_url` do canal. A exclusão do canal não gera este evento.
+
+## Evento channel_health_update
+
+Evento próprio do Coexy (não vem da Meta), enviado quando a saúde do número muda. `health_state`: `healthy`, `warning` (atenção, ex.: qualidade amarela), `restricted` (envios iniciados pela empresa restritos), `blocked` (envios bloqueados, ex.: pagamento) ou `banned` (número banido). `issues` traz os motivos informados pela Meta, com `description` em português quando conhecida. Assine com `events: ['channel_health_update']`.
+
+```json
+{
+  "event": "channel_health_update",
+  "channel_id": "uuid",
+  "phone_number_id": "1128059963726893",
+  "previous_state": "healthy",
+  "health_state": "warning",
+  "quality_rating": "YELLOW",
+  "messaging_limit_tier": "TIER_1K",
+  "issues": [],
+  "checked_at": "2026-10-29T14:03:00Z"
+}
+```
+
+## Coexistência: contatos e histórico
+
+Números conectados pelo app WhatsApp Business (coexistência) podem compartilhar os contatos da agenda do app (`smb_app_state_sync`) e até 180 dias de conversas (`history`). A Meta só envia esses dados se a sincronização for pedida em até **24 horas** depois da conexão, uma única vez por tipo.
+
+- Se, no momento da conexão, você já tiver um webhook ativo assinando o evento, o Coexy pede a sincronização sozinho.
+- Se não, peça pelo meta-proxy antes do `coexistence.sync_deadline` do canal (por exemplo, ao receber `channel_status_update` com `status: "active"` e `coexistence.enabled`): `POST /meta-proxy/{phone_number_id}/smb_app_data` com `{"messaging_product": "whatsapp", "sync_type": "smb_app_state_sync"}` e depois com `"sync_type": "history"`.
+- O histórico chega em vários eventos, em fases (`phase` 0, 1, 2) e partes (`chunk_order`); `progress` = 100 indica o fim. Mídias só trazem id quando são dos últimos 14 dias. Se o cliente não compartilhou o histórico, chega um `history` com erro `2593109`. Os payloads seguem o formato da Meta.
+- O Coexy não guarda o histórico: salve-o no seu sistema.
+
 ## Retry automático
 
 O Coexy tenta reenviar eventos em caso de falha:
 
-| Tentativa | Delay |
-|-----------|-------|
-| 1ª | imediata |
-| 2ª | 30 segundos |
-| 3ª | 2 minutos |
-| 4ª | 10 minutos |
-| Após 4 falhas | falha permanente |
+| Tentativa | Quando |
+|-----------|--------|
+| 1ª | imediata (eventos `channel_status_update` e `channel_health_update`: em até ~1 minuto) |
+| 2ª | ~30 segundos após a falha |
+| 3ª | ~2 minutos após a falha anterior |
+| 4ª | ~10 minutos após a falha anterior |
+| 5ª | ~30 minutos após a falha anterior |
+| 6ª | ~30 minutos após a falha anterior (≈ 1h13 desde o evento) |
+| Após 6 falhas | falha definitiva; pode ser reenviada manualmente no painel |
+
+Conta como falha: resposta fora de 2xx, timeout de 10 segundos ou erro de conexão. Se você responder `429` com `Retry-After` (segundos ou data HTTP), a próxima tentativa espera esse tempo, até no máximo 1 hora.
+
+No painel, em Webhooks → detalhe do webhook → Últimas entregas, entregas com falha definitiva têm o botão **Reenviar**: uma nova tentativa sai em até 1 minuto, com o mesmo `webhook-id`.
+
+Com retentativas, eventos podem chegar fora de ordem (ex.: `read` antes de `delivered`). Ordene pelo `timestamp` do próprio evento, não pela ordem de chegada.
 
 Seu endpoint tem **10 segundos** para responder com status 2xx. Responda sempre antes de processar — veja [Segurança](/receiving-events/security).
 
@@ -157,5 +249,5 @@ Seu endpoint tem **10 segundos** para responder com status 2xx. Responda sempre 
 |--------|----------|-------|
 | `404` | `Webhook not found` | ID não existe ou não pertence à sua org |
 | `422` | `"url" must start with https://` | URL sem HTTPS |
-| `422` | `"events" values must be one of: messages, message_template_status_update` | Evento inválido |
+| `422` | `"events" values must be one of: messages, smb_message_echoes, ...` | Evento fora da lista de "Eventos disponíveis" |
 | `422` | `One or more channel_ids not found in this org` | Canal não pertence à sua org |

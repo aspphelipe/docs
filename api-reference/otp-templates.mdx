@@ -1,0 +1,68 @@
+---
+title: 'Templates de autenticação (OTP)'
+description: 'Crie templates de código de verificação no painel e envie pela API'
+---
+
+Templates de autenticação enviam códigos de uso único (OTP). O texto é fixo e traduzido pela Meta:
+"`<código>` é seu código de verificação.", com aviso de segurança e de validade opcionais. Não aceitam
+cabeçalho, mídia, URL nem emoji.
+
+## Criar no painel
+
+Em **Templates → Novo template**, escolha a categoria **Autenticação**:
+
+| Opção | Valores |
+|---|---|
+| Botão | **Copiar código**, **Um toque** (preenche o código no seu app Android) ou **Zero toque** (o código chega no app sem toque) |
+| Apps Android | 1 a 5 pares de pacote (`com.empresa.app`) e hash de assinatura (11 caracteres). Obrigatório em um toque e zero toque |
+| Aviso de segurança | "Para sua segurança, não o compartilhe." |
+| Validade do código | 1 a 90 minutos. Também desativa o botão de um toque depois desse prazo (padrão: 10 minutos) |
+| Tempo de vida da mensagem | Padrão (10 min), 30 a 900 segundos, ou 30 dias. Mensagem não entregue no prazo é descartada |
+| Idiomas | Vários de uma vez: é criado um template por idioma, com o mesmo nome |
+
+Depois de salvar, envie para os canais. A Meta analisa cada idioma em cada WABA.
+
+## Enviar pela API
+
+O payload é o mesmo para os três tipos de botão. O código vai no corpo **e** no botão (`sub_type: "url"`, `index: "0"`):
+
+```bash
+curl -X POST https://api.coexy.com.br/functions/v1/meta-proxy/<PHONE_NUMBER_ID>/messages \
+  -H "Authorization: Bearer <CHANNEL_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messaging_product": "whatsapp",
+    "to": "5511999999999",
+    "type": "template",
+    "template": {
+      "name": "codigo_login",
+      "language": { "code": "pt_BR" },
+      "components": [
+        { "type": "body", "parameters": [{ "type": "text", "text": "123456" }] },
+        { "type": "button", "sub_type": "url", "index": "0",
+          "parameters": [{ "type": "text", "text": "123456" }] }
+      ]
+    }
+  }'
+```
+
+O `<CHANNEL_TOKEN>` é o `channel_token` do canal (veja [Canais](/api-reference/channels)), não a chave da API de Gerenciamento.
+
+- O código tem no máximo **15 caracteres**, sem URL nem emoji.
+- A mensagem só chega no **aparelho principal** do contato; aparelhos vinculados mostram um aviso.
+- Se não receber o webhook `delivered` dentro do tempo de vida, considere a mensagem descartada.
+
+## Um toque e zero toque
+
+Seu app Android precisa fazer o *handshake* com o WhatsApp **antes** de você pedir o envio:
+
+- Use o SDK de OTP do WhatsApp para Android (`com.whatsapp.otp:whatsapp-otp-android-sdk`). O handshake
+  por `PendingIntent` foi descontinuado em 15/10/2026.
+- O app recebe o código pela ação `com.whatsapp.otp.OTP_RETRIEVED` (extra `code`).
+- O botão cai para **Copiar código** quando o handshake não aconteceu, passou de 10 minutos (ou da validade do
+  código), o aparelho não é elegível ou o contato usa iOS. O zero toque cai primeiro para um toque.
+
+## No iOS 26 ou superior
+
+No iOS 26 ou superior, o teclado sugere automaticamente códigos numéricos de 3 a 8 dígitos. Use códigos numéricos de 3 a 8 dígitos para que a sugestão do teclado funcione. Para desligar,
+use a opção do template no WhatsApp Manager (não há campo na API).

@@ -12,14 +12,32 @@ type Channel = {
   id:                   string        // UUID
   name:                 string
   status:               'pending' | 'active' | 'disconnected' | 'suspended'
+  channel_type:         'whatsapp'
   display_phone_number: string | null // ex: "+55 11 99999-9999"
-  phone_number_id:      string | null // ID do número na Meta — usar como {entity_id} no meta-proxy para enviar mensagens
-  waba_id:              string | null // ID da conta WhatsApp Business — usar como {entity_id} no meta-proxy para templates
+  phone_number_id:      string | null // ID do número na Meta: {phone_number_id} no meta-proxy para enviar mensagens
+  waba_id:              string | null // ID da conta WhatsApp Business: {waba_id} no meta-proxy para templates
   channel_token:        string        // Bearer token do meta-proxy (Authorization: Bearer)
-  connect_url:          string        // https://coexy.com.br/connect/<token>
+  connect_url:          string        // https://coexy.com.br/connect/<channel_token>
   connected_at:         string | null // ISO 8601
-  token_expires_at:     string | null // ISO 8601
   created_at:           string        // ISO 8601
+  verification: {
+    status:             'not_verified' | 'pending' | 'verified' | 'rejected' | 'failed'
+    attempts:           number        // tentativas realizadas
+    max_attempts:       number        // limite (sempre 3)
+    rejection_reasons:  string[] | null
+    verified_at:        string | null // ISO 8601
+    url:                string | null // URL pública do wizard de verificação
+  }
+  payment: {
+    configured:         boolean | null // forma de pagamento da Meta configurada na conta WhatsApp Business
+    currency:           string | null  // moeda da conta, ex: "BRL"
+  }
+  coexistence: {
+    enabled:                    boolean       // número conectado pelo app WhatsApp Business
+    contacts_sync_requested_at: string | null // quando a sincronização de contatos foi pedida
+    history_sync_requested_at:  string | null // quando a sincronização do histórico foi pedida
+    sync_deadline:              string | null // prazo da Meta para pedir (conexão + 24h)
+  }
 }
 ```
 
@@ -27,25 +45,38 @@ type Channel = {
 
 | Status | Significado |
 |--------|------------|
-| `pending` | Canal criado, aguardando conexão do número WhatsApp via `connect_url` |
-| `active` | Conectado e funcionando — tokens são renovados automaticamente pelo Coexy |
-| `disconnected` | Token revogado pela Meta (ex: mudança de senha, remoção de permissão) — requer reconexão via `connect_url` |
-| `suspended` | Suspenso administrativamente |
+| `pending` | Canal criado, aguardando a conexão do número WhatsApp pelo `connect_url` |
+| `active` | Conectado e funcionando. Os tokens da Meta são renovados automaticamente pelo Coexy |
+| `disconnected` | Acesso revogado pela Meta (ex.: mudança de senha, remoção de permissão) ou canal desconectado no painel. Reconecte pelo `connect_url` |
+| `suspended` | Suspenso administrativamente pelo Coexy |
+
+Para ser avisado das mudanças sem consultar a API, assine o evento de webhook [`channel_status_update`](/api-reference/webhooks#evento-channel_status_update).
 
 <Info>
-**Tokens são gerenciados automaticamente pelo Coexy.** Após conectar o WhatsApp, você não precisa se preocupar com renovação de tokens — o Coexy cuida disso. Em casos raros (ex: revogação de permissão na Meta), o canal muda para `disconnected` e você deve reconectar pelo `connect_url`.
+**Tokens são gerenciados automaticamente pelo Coexy.** Depois de conectar o WhatsApp, você não precisa renovar tokens. Em casos raros (ex.: revogação de permissão na Meta), o canal muda para `disconnected` e você reconecta pelo mesmo `connect_url`, sem recriar o canal.
 </Info>
 
 ## Fluxo de conexão
 
-1. Crie o canal via `POST /channels` — ele nasce com status `pending`
-2. Compartilhe o `connect_url` com o dono do número WhatsApp
-3. O dono acessa o link e autoriza via WhatsApp Embedded Signup
-4. O canal muda para `active` e os campos `phone_number_id`, `waba_id` e `display_phone_number` são preenchidos
+1. Crie o canal com `POST /channels`. Ele nasce com status `pending`.
+2. Compartilhe o `connect_url` com o dono do número WhatsApp.
+3. O dono abre o link e autoriza pelo WhatsApp Embedded Signup.
+4. O canal muda para `active` e `phone_number_id`, `waba_id` e `display_phone_number` são preenchidos.
 
 <Warning>
 `phone_number_id` e `waba_id` só ficam disponíveis **após a conexão**. Antes disso, são `null`.
 </Warning>
+
+## Verificação de Empresa
+
+Cada canal inclui um objeto `verification` com o status da verificação de empresa junto à Meta. A verificação desbloqueia:
+
+- Alcance de até 100K contatos/dia (vs 250 sem verificação)
+- Até 20 números por Business Manager (vs 2)
+- Nome da empresa visível nas conversas do WhatsApp
+- Elegibilidade para selo azul verificado
+
+Compartilhe a `verification.url` para que o responsável pela empresa envie os documentos de verificação. O processo leva aproximadamente 5 minutos após o envio.
 
 ## Endpoints
 
@@ -88,6 +119,22 @@ curl -X POST https://api.coexy.com.br/functions/v1/api/channels \
 **Resposta:** `Channel` — status `201 Created`
 
 Após criar, compartilhe o `connect_url` retornado para que o número seja conectado.
+
+#### Redirecionamento após a conexão
+
+Opcional. Em **Configurações › Organização › Redirecionamento após conexão**, informe uma URL `https://`. Assim que o número for conectado pelo `connect_url`, a pessoa é levada para essa URL com os dados do canal:
+
+```
+https://seusite.com.br/whatsapp-conectado?channel_id=3f1c...&status=connected&phone=5511999999999
+```
+
+| Parâmetro | Descrição |
+|-----------|-----------|
+| `channel_id` | `id` do canal conectado |
+| `status` | Sempre `connected` |
+| `phone` | Número conectado, só dígitos. Ausente se a Meta não informar |
+
+Parâmetros que a sua URL já tiver são mantidos. Sem URL configurada, o link mostra a tela de conexão concluída. Use o `channel_id` para consultar o canal pela API ou aguarde o evento de webhook `channel_status_update` antes de liberar o envio.
 
 ---
 

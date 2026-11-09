@@ -1,46 +1,24 @@
 ---
-title: Meta Proxy
-description: Envie mensagens e chame a API da Meta sem gerenciar tokens diretamente.
+title: Enviar mensagens e mídia
+description: O meta-proxy repassa suas chamadas à WhatsApp Cloud API da Meta usando o token do canal.
 ---
 
-O meta-proxy é um relay autenticado: você faz a chamada com seu `channel_token`, e o Coexy injeta o token de acesso Meta real antes de encaminhar para a API da Meta. Seus tokens Meta nunca ficam expostos no seu código.
+O Coexy não tem API própria de envio. O meta-proxy é um relay da [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api/reference): método, path, query e body seguem a documentação da Meta. Só duas coisas mudam:
 
-## A regra de ouro
-
-<Info>
-**Para qualquer chamada à Meta Graph API**, substitua apenas dois elementos:
-
-| Original | Via Coexy |
-|---------|-----------|
+| Direto na Meta | Pelo Coexy |
+|----------------|------------|
 | `https://graph.facebook.com/v23.0/` | `https://api.coexy.com.br/functions/v1/meta-proxy/` |
-| `Authorization: Bearer <meta-access-token>` | `Authorization: Bearer <channel_token>` |
+| `Authorization: Bearer <token-da-meta>` | `Authorization: Bearer <channel_token>` |
 
-O restante — método HTTP, path, query params, body e campos — segue exatamente a [documentação oficial da Meta](https://developers.facebook.com/docs/whatsapp/cloud-api/reference).
-</Info>
-
-## Autenticação
-
-```
-Base URL: https://api.coexy.com.br/functions/v1/meta-proxy
-Header:   Authorization: Bearer <channel_token>
-```
-
-O `channel_token` identifica um canal específico. Encontre-o em **Painel Coexy → Canais → detalhe do canal**, ou no campo `channel_token` da resposta de `GET /api/channels`.
+O `channel_token`, o `phone_number_id` e o `waba_id` vêm em `GET /api/channels`. O proxy usa a versão v23.0 da Graph API; não coloque a versão na URL.
 
 <Warning>
-O `channel_token` é diferente da `COEXY_API_KEY`. Não os misture.
+Chame o meta-proxy só do seu backend. O `channel_token` dá acesso ao canal e não pode ir para o navegador. Ele é diferente da `COEXY_API_KEY`; não os misture.
+
+**Se você usa Lovable, Bolt, Cursor ou outra plataforma que gera código React**, crie uma Edge Function no Supabase para cada operação (ex.: `send-whatsapp-message`). O frontend chama a função com `supabase.functions.invoke()` e a função chama o Coexy com o token guardado nos secrets.
 </Warning>
 
-## Exemplos
-
-### Listar templates
-
-```bash
-curl "https://api.coexy.com.br/functions/v1/meta-proxy/{waba_id}/message_templates?fields=name,status,category,language,components" \
-  -H "Authorization: Bearer <channel_token>"
-```
-
-### Enviar mensagem de texto
+## Enviar mensagem
 
 ```bash
 curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/messages" \
@@ -54,97 +32,120 @@ curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}
   }'
 ```
 
-### Enviar template com variável
+Templates, botões, listas, CTA com URL e os demais tipos usam o mesmo endpoint, com o body da documentação da Meta. Mensagens que não são template só podem ser enviadas dentro da janela de 24 horas aberta pelo contato.
 
-```bash
-curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/messages" \
-  -H "Authorization: Bearer <channel_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messaging_product": "whatsapp",
-    "to": "5511999999999",
-    "type": "template",
-    "template": {
-      "name": "nome_do_template",
-      "language": { "code": "pt_BR" },
-      "components": [
-        {
-          "type": "body",
-          "parameters": [
-            { "type": "text", "text": "João Silva" }
-          ]
-        }
-      ]
-    }
-  }'
-```
+Para evitar envio duplicado em retentativas, inclua `idempotency_key` no body. O Coexy remove o campo antes de repassar à Meta e, se a chave já foi usada, devolve o `wamid` original sem reenviar.
 
-<Tip>
-O `waba_id` e o `phone_number_id` do canal estão disponíveis nos campos correspondentes da resposta de `GET /api/channels/:id`.
-</Tip>
-
-## Idempotência no envio
-
-Para evitar envios duplicados em caso de retry, inclua `idempotency_key` no body:
-
-```json
-{
-  "messaging_product": "whatsapp",
-  "to": "5511999999999",
-  "type": "text",
-  "text": { "body": "Confirmação do pedido #42" },
-  "idempotency_key": "pedido-42-confirmacao"
-}
-```
-
-O Coexy remove o campo antes de encaminhar para a Meta e garante que a mesma mensagem não seja enviada duas vezes com a mesma chave.
-
-## Segurança — nunca chame o meta-proxy direto do frontend
-
-<Warning>
-**Se você usa Lovable, Bolt, Cursor ou qualquer plataforma que gera código React**, nunca chame o meta-proxy diretamente do frontend. O `channel_token` ficaria visível no browser para qualquer usuário.
-
-```
-❌ Frontend React  →  https://api.coexy.com.br/functions/v1/meta-proxy/...
-✅ Frontend React  →  Supabase Edge Function  →  https://api.coexy.com.br/functions/v1/meta-proxy/...
-```
-
-Crie uma Edge Function no Supabase para cada operação (ex: `send-whatsapp-message`). O frontend chama sua Edge Function via `supabase.functions.invoke()`, e a Edge Function usa o secret para chamar o Coexy. As credenciais nunca chegam ao browser.
-</Warning>
-
-## Exemplos em Python
-
-### Enviar mensagem de texto
+### Python
 
 ```python
 import httpx
 
 response = httpx.post(
     f"https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/messages",
-    headers={
-        "Authorization": f"Bearer {channel_token}",
-        "Content-Type": "application/json",
-    },
+    headers={"Authorization": f"Bearer {channel_token}"},
     json={
         "messaging_product": "whatsapp",
         "to": "5511999999999",
         "type": "text",
         "text": {"body": "Olá! Como posso ajudar?"},
+        "idempotency_key": "pedido-42-confirmacao",  # opcional
     },
 )
 print(response.json())
 ```
 
+## Listar templates
+
+```bash
+curl "https://api.coexy.com.br/functions/v1/meta-proxy/{waba_id}/message_templates?fields=name,status,category,language,components"   -H "Authorization: Bearer <channel_token>"
+```
+
+## Template com imagem, vídeo ou documento no cabeçalho
+
+O arquivo do cabeçalho é enviado em cada mensagem: cada cliente pode receber o próprio PDF, imagem ou vídeo com o mesmo template aprovado. Use `link` (URL pública) ou o `id` de uma mídia enviada antes (seção abaixo).
+
+```bash
+curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/messages" \n  -H "Authorization: Bearer <channel_token>" \n  -H "Content-Type: application/json" \n  -d '{
+    "messaging_product": "whatsapp",
+    "to": "5511999999999",
+    "type": "template",
+    "template": {
+      "name": "segunda_via_boleto",
+      "language": { "code": "pt_BR" },
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            { "type": "document", "document": { "link": "https://seusite.com/boletos/123.pdf", "filename": "boleto.pdf" } }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [{ "type": "text", "text": "Ana" }]
+        }
+      ]
+    }
+  }'
+```
+
+Para imagem e vídeo, troque por `{ "type": "image", "image": { "link": "..." } }` ou `{ "type": "video", "video": { "link": "..." } }`. O arquivo de exemplo enviado ao criar o template no painel serve só para a revisão da Meta.
+
+## Enviar mídia (upload)
+
+Mesmo endpoint da Meta, em `multipart/form-data`. Não defina o `Content-Type` manualmente; deixe a biblioteca HTTP gerar o boundary.
+
+```bash
+curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/media" \
+  -H "Authorization: Bearer <channel_token>" \
+  -F "messaging_product=whatsapp" \
+  -F "type=image/jpeg" \
+  -F "file=@foto.jpg"
+```
+
+O `id` retornado vai no envio da mensagem, por exemplo `"image": { "id": "<media_id>" }`.
+
+## Baixar mídia recebida
+
+O webhook traz só o `id` da mídia (ex.: `message.audio.id`). O download segue os dois passos da Meta:
+
+1. `GET /meta-proxy/{media_id}` devolve `url`, `mime_type`, `sha256` e `file_size`. A `url` já aponta para o Coexy (`https://api.coexy.com.br/functions/v1/meta-proxy/lookaside/...`).
+2. `GET <url>` com o mesmo `Authorization: Bearer <channel_token>` devolve o arquivo.
+
+```typescript
+const headers = { Authorization: `Bearer ${channelToken}` }
+const base = 'https://api.coexy.com.br/functions/v1/meta-proxy'
+
+const media = await fetch(`${base}/${mediaId}`, { headers }).then(r => r.json())
+const file = await fetch(media.url, { headers })
+const bytes = new Uint8Array(await file.arrayBuffer()) // tipo em media.mime_type
+```
+
+<Note>
+A `url` expira em cerca de 5 minutos: baixe logo após obtê-la e, se expirar, repita o passo 1. Use a `url` exatamente como veio; acessar `lookaside.fbsbx.com` direto falha, porque exige o token da Meta.
+</Note>
+
+## Sincronizar contatos e histórico (coexistência)
+
+Em números conectados pelo app WhatsApp Business, peça a sincronização em até 24 horas depois da conexão (veja `coexistence.sync_deadline` em `GET /api/channels`). Cada tipo só pode ser pedido uma vez. Se você já tinha um webhook assinando `smb_app_state_sync` ou `history` quando o canal conectou, o Coexy já pediu por você.
+
+```bash
+curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}/smb_app_data" \
+  -H "Authorization: Bearer <channel_token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "messaging_product": "whatsapp", "sync_type": "smb_app_state_sync" }'
+# depois, o mesmo com "sync_type": "history"
+```
+
+Os dados chegam nos eventos de webhook `smb_app_state_sync` e `history`. Veja [Webhooks](/api-reference/webhooks).
+
 ## Erros
 
-| Status | `error` | Causa | O que fazer |
-|--------|---------|-------|-------------|
-| `401` | `Authorization header required` | Header `Authorization` ausente | Adicionar `Authorization: Bearer <channel_token>` |
-| `401` | `Invalid channel token` | Token inválido ou canal não existe | Verificar o `channel_token` no painel ou via `GET /api/channels` |
-| `403` | `Channel is not active` | Canal desconectado ou suspenso | Verificar status do canal; se `disconnected`, reconectar via `connect_url` |
-| `429` | `Rate limit exceeded` | Limite de 100 req/min por canal | Aguardar o tempo indicado no header `Retry-After` |
-| `503` | `CHANNEL_DISCONNECTED` | Token Meta foi revogado (ex: mudança de senha, remoção de permissão) | **Não recrie o canal.** Acesse o `connect_url` para reconectar. Webhooks e configurações são preservados. |
+| Status | `error` | O que fazer |
+|--------|---------|-------------|
+| `401` | `Authorization header required` / `Invalid channel token` | Conferir o `channel_token` |
+| `403` | `Channel is not active` | Canal desconectado ou suspenso; reconectar pelo `connect_url` |
+| `429` | `Rate limit exceeded` | Limite de 100 envios por minuto por canal; aguardar o `Retry-After` |
+| `503` | `CHANNEL_DISCONNECTED` | O token da Meta foi revogado. Não recrie o canal: reconecte pelo `connect_url` |
 
-<Info>
-**Sobre o erro 503:** Em operação normal, o Coexy renova tokens automaticamente e você nunca verá esse erro. Ele só ocorre quando a Meta revoga o acesso por motivos externos (ex: o dono do número removeu a permissão do app).
-</Info>
+Demais erros vêm da Meta, no formato da Cloud API.

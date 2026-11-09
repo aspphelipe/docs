@@ -50,7 +50,7 @@ Usado nas chamadas ao **meta-proxy** (`/meta-proxy/*`) para enviar mensagens.
 </Steps>
 
 <Tip>
-Na lista de canais, o token aparece truncado (`ch_1a2b3c...`). Para o valor completo, use sempre a aba API do detalhe.
+Na lista de canais, o card mostra só o começo do token (os primeiros 20 caracteres). Para o valor completo, use a aba **API** do detalhe.
 </Tip>
 
 ---
@@ -59,19 +59,19 @@ Na lista de canais, o token aparece truncado (`ch_1a2b3c...`). Para o valor comp
 
 ID da sua conta WhatsApp Business na Meta. Necessário para listar e criar templates.
 
-**Caminho:** Menu lateral → **Canais** → clique no canal → aba **Configurações**
+**Caminho:** Menu lateral → **Canais** → clique no canal → aba **API** (campo **WABA ID**) ou aba **Configurações**
 
 <Steps>
   <Step title="Abra o detalhe do canal">
     Na lista de canais, clique em **Configurar** no canal desejado.
   </Step>
-  <Step title="Vá para a aba Configurações">
-    Clique na aba **Configurações**. Na seção **Conexão WhatsApp**, localize o card **WABA ID**.
+  <Step title="Copie o WABA ID">
+    Na aba **API**, o campo **WABA ID** tem botão de copiar. Ele também aparece na aba **Configurações**, seção **Conexão WhatsApp**.
   </Step>
 </Steps>
 
 <Note>
-O WABA ID só aparece **após o número ser conectado**. Se o canal ainda está pendente, o card não será exibido.
+O WABA ID só aparece **após o número ser conectado**. Antes disso, a aba API mostra "Conecte o WhatsApp para obter".
 </Note>
 
 ---
@@ -87,12 +87,12 @@ ID do número de telefone na Meta. Usado como `{entity_id}` nas chamadas de envi
     Na lista de canais, clique em **Configurar**.
   </Step>
   <Step title="Vá para a aba API">
-    Clique na aba **API**. Os exemplos de curl já mostram o `phone_number_id` real do canal preenchido nos comandos.
+    Clique na aba **API**. O campo **Phone Number ID** tem botão de copiar, e os exemplos de curl já vêm com o valor real do canal.
   </Step>
 </Steps>
 
 <Note>
-Assim como o WABA ID, o `phone_number_id` só é preenchido após conectar o número. Antes disso, os exemplos mostram o placeholder `{phone_number_id}`.
+Assim como o WABA ID, o `phone_number_id` só é preenchido após conectar o número. Antes disso, os exemplos mostram o placeholder `{PHONE_NUMBER_ID_DO_CANAL}`.
 </Note>
 
 ---
@@ -106,7 +106,7 @@ Antes de ter o `waba_id` e o `phone_number_id`, você precisa conectar um númer
     Em **Canais**, clique em **Novo Canal**, dê um nome e confirme.
   </Step>
   <Step title="Obtenha o link de conexão">
-    No card do canal recém-criado, clique no botão de **Compartilhar** (ícone de share) para copiar o link, ou clique em **Configurar** → **Conectar WhatsApp**.
+    No card do canal recém-criado, clique no botão de compartilhar (ícone ao lado de **Configurar**) para copiar o link de conexão, ou abra o canal em **Configurar** e clique em **Conectar** no topo da página.
   </Step>
   <Step title="Acesse o link">
     Abra o link copiado. Você verá a página de conexão do Coexy com o botão **Conectar WhatsApp Business**.
@@ -115,7 +115,7 @@ Antes de ter o `waba_id` e o `phone_number_id`, você precisa conectar um númer
     Clique no botão. Uma janela da Meta abrirá — siga o fluxo de WhatsApp Embedded Signup para autorizar o número.
   </Step>
   <Step title="Conexão concluída">
-    Após autorizar, o painel exibirá **"WhatsApp Conectado!"**. O canal agora terá `waba_id`, `phone_number_id` e `display_phone_number` preenchidos.
+    Após autorizar, a página de conexão exibe **"WhatsApp Conectado!"** (ou leva para a sua URL de [redirecionamento após a conexão](/api-reference/channels), se configurada). O canal agora terá `waba_id`, `phone_number_id` e `display_phone_number` preenchidos.
   </Step>
 </Steps>
 
@@ -131,5 +131,5 @@ Antes de ter o `waba_id` e o `phone_number_id`, você precisa conectar um númer
 |-----------|---------------|---------|----------------------|
 | `COEXY_API_KEY` | **API Keys** → Nova chave | — | Imediatamente |
 | `channel_token` | Detalhe do canal → aba **API** | `GET /api/channels` → campo `channel_token` | Após criar o canal |
-| `waba_id` | Detalhe do canal → aba **Configurações** | `GET /api/channels` → campo `waba_id` | Após conectar o número |
+| `waba_id` | Detalhe do canal → aba **API** ou **Configurações** | `GET /api/channels` → campo `waba_id` | Após conectar o número |
 | `phone_number_id` | Detalhe do canal → aba **API** | `GET /api/channels` → campo `phone_number_id` | Após conectar o número |

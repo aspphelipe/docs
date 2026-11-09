@@ -5,9 +5,9 @@ description: Do zero a recebendo mensagens WhatsApp em menos de 10 minutos.
 
 ## 1. Gere uma API Key
 
-No painel do Coexy, vá em **Configurações → API Keys** e crie uma nova chave.
+No painel do Coexy, vá em **API Keys** (menu lateral) e crie uma nova chave.
 
-Guarde o valor — ele só é exibido uma vez.
+Guarde o valor — ele só é exibido uma vez. Veja [onde encontrar cada credencial](/guides/credenciais) no painel.
 
 ## 2. Crie um canal
 
@@ -29,7 +29,7 @@ curl -X POST https://api.coexy.com.br/functions/v1/api/webhooks \
   -d '{
     "name": "Meu CRM",
     "url": "https://meuapp.com/webhook/coexy",
-    "events": ["messages", "message_template_status_update"]
+    "events": ["messages", "channel_status_update"]
   }'
 ```
 

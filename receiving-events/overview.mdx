@@ -1,6 +1,6 @@
 ---
 title: Visão Geral
-description: Eventos enviados pelo Coexy — o payload segue o formato nativo da Meta (WhatsApp Cloud API).
+description: Eventos enviados pelo Coexy — o body é o value nativo da Meta (WhatsApp Cloud API).
 ---
 
 O Coexy entrega eventos via `POST` com `Content-Type: application/json`. O header `x-coexy-signature` carrega a assinatura HMAC-SHA256 — [verifique-a](/receiving-events/security) antes de processar qualquer dado.
@@ -8,38 +8,37 @@ O Coexy entrega eventos via `POST` com `Content-Type: application/json`. O heade
 ## Headers de cada entrega
 
 ```
-X-Coexy-Signature: sha256=<hex>   — assinatura HMAC do body
+X-Coexy-Signature: sha256=<hex>   — assinatura HMAC-SHA256 do body
+webhook-id:        <uuid>         — id da entrega; igual em todas as tentativas e no reenvio manual
+webhook-timestamp: <segundos>     — hora desta tentativa (Unix, em segundos)
 User-Agent:        Coexy-Webhooks/1.0
 Content-Type:      application/json
 ```
 
+Use o `webhook-id` para descartar entregas repetidas. A assinatura cobre só o body.
+
 ## Formato do payload
 
-O body entregue é o **payload nativo da Meta** (WhatsApp Cloud API), sem transformações. O Coexy funciona como relay transparente — a estrutura dos eventos é idêntica à que a Meta enviaria diretamente.
+O body entregue é o objeto `value` do evento da Meta (WhatsApp Cloud API), sem transformações: o mesmo conteúdo que a Meta coloca em `entry[].changes[].value`. O envelope (`object`, `entry`, `changes`, `field`) não é repassado. A exceção são os eventos próprios do Coexy, `channel_status_update` e `channel_health_update`, descritos em [Webhooks](/api-reference/webhooks).
+
+Exemplo de evento `messages`:
 
 ```json
 {
-  "object": "whatsapp_business_account",
-  "entry": [{
-    "id": "<WHATSAPP_BUSINESS_ACCOUNT_ID>",
-    "changes": [{
-      "value": {
-        "messaging_product": "whatsapp",
-        "metadata": {
-          "display_phone_number": "15550783881",
-          "phone_number_id": "<PHONE_NUMBER_ID>"
-        },
-        "contacts": [{ "profile": { "name": "João Silva" }, "wa_id": "5511987654321" }],
-        "messages": [ /* mensagens recebidas */ ],
-        "statuses": [ /* atualizações de status */ ]
-      },
-      "field": "messages"
-    }]
-  }]
+  "messaging_product": "whatsapp",
+  "metadata": {
+    "display_phone_number": "15550783881",
+    "phone_number_id": "<PHONE_NUMBER_ID>"
+  },
+  "contacts": [{ "profile": { "name": "João Silva" }, "wa_id": "5511987654321" }],
+  "messages": [ /* mensagens recebidas */ ],
+  "statuses": [ /* atualizações de status das mensagens enviadas */ ]
 }
 ```
 
-Para a estrutura completa de cada tipo de evento, consulte a documentação oficial da Meta:
+Use `metadata.phone_number_id` para saber de qual canal veio o evento. Os eventos não trazem o nome do campo: se o webhook assina mais de um evento, identifique o tipo pelo conteúdo (`messages`/`statuses` no evento `messages`; `event: "channel_status_update"` ou `"channel_health_update"` nos eventos do Coexy; `message_template_id` em `message_template_status_update`) ou crie um webhook por tipo de evento.
+
+Para a estrutura de cada tipo de evento, consulte a documentação oficial da Meta (o body corresponde ao `value` dos exemplos):
 
 - [Exemplos de payload (Meta)](https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples)
 - [Referência de campos (Meta)](https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components)
@@ -59,27 +58,54 @@ async function handleWebhook(req: Request): Promise<Response> {
   return new Response('OK', { status: 200 })
 }
 
-function processPayload(payload: unknown): void {
-  const data = payload as { entry?: Array<{ changes?: Array<{ value: Record<string, unknown> }> }> }
+async function processPayload(value: Record<string, unknown>): Promise<void> {
+  // Eventos próprios do Coexy
+  if (value.event === 'channel_status_update' || value.event === 'channel_health_update') {
+    handleCoexyEvent(value)
+    return
+  }
 
-  for (const entry of data.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      const value = change.value
+  // Mensagens recebidas
+  for (const msg of (value.messages as unknown[]) ?? []) {
+    handleMessage(msg, value)
+  }
 
-      // Mensagens recebidas
-      for (const msg of (value.messages as unknown[]) ?? []) {
-        handleMessage(msg, value)
-      }
-
-      // Status de mensagens enviadas
-      for (const status of (value.statuses as unknown[]) ?? []) {
-        handleStatus(status)
-      }
-    }
+  // Status de mensagens enviadas
+  for (const status of (value.statuses as unknown[]) ?? []) {
+    handleStatus(status)
   }
 }
 ```
 
+### Python (FastAPI)
+
+```python
+import json
+from fastapi import BackgroundTasks, FastAPI, Request, Response
+
+app = FastAPI()
+
+@app.post("/webhook/coexy")
+async def coexy_webhook(request: Request, background: BackgroundTasks):
+    body = await request.body()
+    if not verify_signature(body, request.headers.get("x-coexy-signature", ""), COEXY_HMAC_SECRET):
+        return Response("Unauthorized", status_code=401)
+
+    # Responder antes de processar (timeout de 10s)
+    background.add_task(process_payload, json.loads(body))
+    return Response("OK", status_code=200)
+
+def process_payload(value: dict) -> None:
+    if value.get("event") in ("channel_status_update", "channel_health_update"):
+        return handle_coexy_event(value)
+    for msg in value.get("messages", []):
+        handle_message(msg, value)
+    for status in value.get("statuses", []):
+        handle_status(status)
+```
+
+`verify_signature` está em [Segurança](/receiving-events/security#python).
+
 <Tip>
-Use o campo `id` de cada mensagem (o `wamid`) como chave de idempotência ao persistir. O mesmo evento pode chegar mais de uma vez em retentativas automáticas — um `upsert` com `on conflict (wamid) do nothing` garante que não haverá duplicatas.
+O mesmo evento pode chegar mais de uma vez (retentativas e reenvio manual). Descarte entregas repetidas pelo header `webhook-id`. Ao persistir mensagens, use o `id` de cada mensagem (o `wamid`) — um `upsert` com `on conflict (wamid) do nothing` evita duplicatas; os status de uma mesma mensagem compartilham o `wamid`.
 </Tip>

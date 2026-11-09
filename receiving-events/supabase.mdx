@@ -31,10 +31,11 @@ Crie a tabela para persistir as mensagens recebidas:
 create table if not exists messages (
   id          uuid primary key default gen_random_uuid(),
   wamid       text not null,
-  channel_id  text not null,
+  channel_id  text not null,           -- phone_number_id do canal (metadata.phone_number_id)
   from_number text not null,
   type        text not null default 'text',
   body        text,
+  status      text,                    -- último status (sent, delivered, read, failed)
   received_at timestamptz not null default now(),
   created_at  timestamptz not null default now(),
   constraint messages_wamid_unique unique (wamid)
@@ -92,36 +93,28 @@ async function verifySignature(
   return crypto.subtle.verify('HMAC', key, expectedBytes, encoder.encode(body))
 }
 
-async function processEvent(payload: Record<string, unknown>): Promise<void> {
-  // O payload segue o formato nativo da Meta: entry[].changes[].value
-  const entries = (payload.entry as Array<{ changes?: unknown[] }>) ?? []
+async function processEvent(value: Record<string, unknown>): Promise<void> {
+  // O body é o "value" nativo da Meta: { messaging_product, metadata, contacts, messages, statuses }
+  const metadata = value.metadata as Record<string, string> | undefined
+  const phoneNumberId = metadata?.phone_number_id ?? ''
 
-  for (const entry of entries) {
-    for (const change of entry.changes ?? []) {
-      const value = (change as { value: Record<string, unknown> }).value
+  // Mensagens recebidas
+  for (const msg of (value.messages as unknown[]) ?? []) {
+    const m = msg as Record<string, unknown>
+    await supabase.from('messages').upsert({
+      wamid:       m.id,
+      channel_id:  phoneNumberId,
+      from_number: m.from,
+      type:        m.type ?? 'text',
+      body:        (m.text as Record<string, string> | undefined)?.body ?? null,
+      received_at: new Date(Number(m.timestamp) * 1000).toISOString(),
+    }, { onConflict: 'wamid', ignoreDuplicates: true })
+  }
 
-      // Mensagens recebidas
-      for (const msg of (value.messages as unknown[]) ?? []) {
-        const m = msg as Record<string, unknown>
-        await supabase.from('messages').upsert({
-          wamid:       m.id,
-          from_number: m.from,
-          type:        m.type ?? 'text',
-          body:        (m.text as Record<string, string> | undefined)?.body ?? null,
-          payload:     m,
-          received_at: new Date(Number(m.timestamp) * 1000).toISOString(),
-        }, { onConflict: 'wamid', ignoreDuplicates: true })
-      }
-
-      // Status de mensagens enviadas
-      for (const st of (value.statuses as unknown[]) ?? []) {
-        const s = st as Record<string, unknown>
-        await supabase
-          .from('messages')
-          .update({ status: s.status })
-          .eq('wamid', s.id)
-      }
-    }
+  // Status de mensagens enviadas
+  for (const st of (value.statuses as unknown[]) ?? []) {
+    const s = st as Record<string, unknown>
+    await supabase.from('messages').update({ status: s.status }).eq('wamid', s.id)
   }
 }
 
@@ -190,7 +183,7 @@ curl -X POST https://api.coexy.com.br/functions/v1/api/webhooks \
   -d '{
     "name": "Meu receptor",
     "url": "https://<project-ref>.supabase.co/functions/v1/coexy-webhook",
-    "events": ["messages", "message_template_status_update"]
+    "events": ["messages"]
   }'
 ```
 

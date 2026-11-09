@@ -108,7 +108,7 @@ Em Supabase Edge Functions, use `EdgeRuntime.waitUntil()` para garantir que o pr
 
 ## Idempotência
 
-O Coexy pode reenviar o mesmo evento em caso de falha de rede ou timeout. Use o campo `wamid` como chave de idempotência.
+O Coexy pode reenviar o mesmo evento em caso de falha, timeout ou reenvio manual. Use o header `webhook-id` (igual em todas as tentativas) como chave de idempotência da entrega e o `wamid` ao persistir mensagens.
 
 ```sql
 -- Nunca falha em duplicatas
@@ -131,7 +131,7 @@ await supabase
 | Variável de ambiente | Descrição |
 |---|---|
 | `COEXY_HMAC_SECRET` | Retornado ao criar o webhook. Não pode ser recuperado — salve imediatamente. |
-| `COEXY_API_KEY` | Gerado em **Configurações → API Keys**. Prefixo `crt_pk_`. |
+| `COEXY_API_KEY` | Gerado em **API Keys** (menu lateral). Prefixo `crt_pk_`. |
 
 **Nunca exponha essas credenciais no frontend, logs, ou repositórios públicos.**
 

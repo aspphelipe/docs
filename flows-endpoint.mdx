@@ -1,0 +1,131 @@
+---
+title: Endpoint dos WhatsApp Flows
+description: O que a sua URL recebe e o que deve responder quando um Flow busca dados em tempo real.
+---
+
+Um Flow com endpoint consulta o seu sistema enquanto o cliente navega: lista horários livres, valida um CPF, calcula
+um frete. Cada consulta é um `POST` com JSON no **corpo** (nada vai na URL) e a sua resposta decide a próxima tela.
+
+A Meta chama a Coexy, que confere a assinatura da Meta, decripta e repassa o JSON aberto para a sua URL, assinado com o
+seu `signing_secret`. A sua resposta é JSON comum: a Coexy criptografa e devolve à Meta. Você não lida com chaves nem
+criptografia.
+
+## Em 4 passos
+
+A aba **Endpoint** do editor de Flows guia a configuração:
+
+1. **URL do seu sistema**: o endereço https que vai receber as requisições.
+2. **Construa o endpoint**: copie o prompt pronto para a ferramenta que você usa (Lovable, Claude Code, Cursor ou
+   outra). Ele já traz as telas, os campos, as respostas esperadas e a verificação da assinatura deste Flow. Copie o
+   segredo à parte e guarde como `COEXY_SIGNING_SECRET`. Usa o [MCP da Coexy](/mcp-coexy)? Peça à sua IA "implemente o
+   endpoint do Flow X": ela lê o contrato pelo `endpoint_contract` de `flows_get`.
+3. **Teste**: um momento por vez ou todos. A Coexy chama a sua URL como a Meta chamaria e diz o que corrigir.
+4. **Publique** o Flow nos canais.
+
+## Requisição
+
+```http
+POST https://sua-url.com/flow
+Content-Type: application/json
+X-Coexy-Timestamp: 1730690000
+X-Coexy-Signature: sha256=3f1c...
+X-Coexy-Flow-Id: 0b8e5c1a-...
+User-Agent: Coexy-Flows/1.0
+```
+
+```json
+{
+  "version": "3.0",
+  "action": "data_exchange",
+  "screen": "SERVICO",
+  "data": { "servico": "corte", "telefone": "5511999999999" },
+  "flow_token": "agendamento-123"
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `action` | `INIT` quando o cliente abre o Flow (mensagem enviada com `flow_action: "data_exchange"`), `data_exchange` quando ele aciona um botão ou campo com essa ação, `BACK` quando volta de uma tela com `refresh_on_back`. |
+| `screen` | Tela em que o cliente está (não vem no `INIT`). |
+| `data` | O `payload` da ação na tela, com os valores que o cliente preencheu (`${form.campo}`) e os dados da tela (`${data.campo}`). |
+| `flow_token` | O identificador que você colocou na mensagem que abriu o Flow. Use para saber de qual cliente ou pedido é a requisição. |
+
+## Resposta
+
+Responda em até **8 segundos**, com status 200 e JSON de até 256 KB.
+
+Ir para a próxima tela, com os dados que ela declara (os nomes e tipos do `data` da tela no Flow JSON, sem campos a
+mais ou a menos):
+
+```json
+{ "screen": "HORARIO", "data": { "horarios": [{ "id": "10h", "title": "10:00" }], "servico": "corte" } }
+```
+
+Manter o cliente na mesma tela com uma mensagem de erro:
+
+```json
+{ "screen": "SERVICO", "data": { "error_message": "Esse serviço não está disponível hoje." } }
+```
+
+Encerrar o Flow (a resposta do cliente chega no webhook de mensagens como `interactive.nfm_reply`):
+
+```json
+{ "screen": "SUCCESS", "data": { "extension_message_response": { "params": { "flow_token": "agendamento-123" } } } }
+```
+
+Quando o `flow_token` não valer mais, responda **HTTP 427**: o cliente vê que o Flow expirou.
+
+<Note>
+No modo Coexy cuida, a checagem de saúde da Meta (`ping`) é respondida pela Coexy e os avisos de erro da Meta
+(`data.error`) chegam só para registro: a Coexy já responde à Meta por você.
+</Note>
+
+## Assinatura
+
+`X-Coexy-Signature` é `sha256=` seguido do HMAC-SHA256, em hexadecimal, de `X-Coexy-Timestamp + "." + corpo bruto`,
+com o `signing_secret` do Flow. Calcule sobre o corpo exatamente como chegou, compare em tempo constante e recuse
+timestamps com mais de 5 minutos.
+
+```javascript Node.js
+import crypto from 'node:crypto'
+
+export function assinaturaValida(headers, rawBody, signingSecret) {
+  const timestamp = headers['x-coexy-timestamp']
+  if (!timestamp || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false
+  const esperado = 'sha256=' + crypto.createHmac('sha256', signingSecret).update(`${timestamp}.${rawBody}`).digest('hex')
+  const recebido = headers['x-coexy-signature'] ?? ''
+  return recebido.length === esperado.length && crypto.timingSafeEqual(Buffer.from(recebido), Buffer.from(esperado))
+}
+```
+
+```python Python
+import hashlib, hmac, time
+
+def assinatura_valida(headers: dict, raw_body: bytes, signing_secret: str) -> bool:
+    timestamp = headers.get('x-coexy-timestamp', '')
+    if not timestamp or abs(time.time() - int(timestamp)) > 300:
+        return False
+    esperado = 'sha256=' + hmac.new(signing_secret.encode(), timestamp.encode() + b'.' + raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(headers.get('x-coexy-signature', ''), esperado)
+```
+
+## Testar
+
+No passo 3 da aba Endpoint (ou com `flows_test_endpoint` no MCP, usando `step_id` ou `all`), a Coexy envia a
+requisição de cada momento, assinada como as reais e com `flow_token` **"coexy-test"**: trate esse token como válido e
+responda com dados de exemplo. Cada resposta é conferida contra a tela de destino e o resultado diz, em português, o
+efeito para o cliente ("a tela Horário não vai abrir"), o que está errado (campo faltando, tipo errado, tela fora do
+`routing_model`, HTTP diferente de 200, tempo acima de 8 segundos) e a resposta esperada. O botão **Copiar correção
+para a sua IA** gera um prompt curto com o erro e o formato certo.
+
+## Precisa que os dados não passem pela Coexy?
+
+Para requisitos de segurança em que os dados do cliente final não podem ser abertos por terceiros, há o modo avançado
+**Meu servidor**, pela API e pelo MCP (`flows_set_endpoint` com `mode: "own"` e `flows_channel_encryption`): a Meta
+chama o seu servidor direto, com o corpo criptografado, e o seu servidor decripta com a chave privada dele e
+criptografa as respostas. Depois de decriptar, os formatos são os desta página.
+
+<Warning>
+Um número de WhatsApp guarda uma chave pública só. Registrar a chave do seu servidor num canal faz os Flows "Coexy
+cuida" desse canal pararem, e vice-versa.
+</Warning>

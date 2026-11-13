@@ -34,7 +34,12 @@ curl -X POST "https://api.coexy.com.br/functions/v1/meta-proxy/{phone_number_id}
 
 Templates, botões, listas, CTA com URL e os demais tipos usam o mesmo endpoint, com o body da documentação da Meta. Mensagens que não são template só podem ser enviadas dentro da janela de 24 horas aberta pelo contato.
 
-Para evitar envio duplicado em retentativas, inclua `idempotency_key` no body. O Coexy remove o campo antes de repassar à Meta e, se a chave já foi usada, devolve o `wamid` original sem reenviar.
+Para evitar envio duplicado em retentativas, inclua `idempotency_key` no body. O Coexy remove o campo antes de repassar à Meta. A chave vale **por canal, por 7 dias** a partir do envio aceito:
+
+- mesma chave e mesmo body: devolve a resposta original (com o `wamid`) sem reenviar;
+- mesma chave com body diferente: **422** `idempotency_key_reused`, nada é enviado;
+- mesma chave enquanto o primeiro envio ainda está em andamento: o Coexy espera até 10 s e devolve o mesmo resultado; se passar disso, **409** `idempotency_in_progress` (repita a chamada sem mudar nada);
+- se a Meta recusar o envio, a chave é liberada e pode ser usada na retentativa.
 
 ### Python
 
@@ -144,7 +149,9 @@ Os dados chegam nos eventos de webhook `smb_app_state_sync` e `history`. Veja [W
 | Status | `error` | O que fazer |
 |--------|---------|-------------|
 | `401` | `Authorization header required` / `Invalid channel token` | Conferir o `channel_token` |
+| `401` | `Channel token expired` (`code: token_expired`) | O `channel_token` passou da validade (`channel_token_expires_at`). Gere outro com `POST /channels/:id/rotate-token` ou no painel |
 | `403` | `Channel is not active` | Canal desconectado ou suspenso; reconectar pelo `connect_url` |
+| `403` | `This endpoint is managed by Coexy` (`code: managed_by_coexy`) | Registro do número (`register`, `deregister`, `request_code`, `verify_code`), PIN de duas etapas, webhooks (`subscribed_apps`, `webhook_configuration`) e tokens são gerenciados pelo Coexy e não passam pelo proxy |
 | `429` | `Rate limit exceeded` | Limite de 100 envios por minuto por canal; aguardar o `Retry-After` |
 | `503` | `CHANNEL_DISCONNECTED` | O token da Meta foi revogado. Não recrie o canal: reconecte pelo `connect_url` |
 

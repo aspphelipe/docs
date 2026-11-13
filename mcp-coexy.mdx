@@ -55,7 +55,8 @@ Em `.cursor/mcp.json`:
 |---|---|
 | `channels_list` | Lista os canais com status, número, saúde e o `connect_url` dos que ainda não estão conectados. Filtro opcional por `status`. |
 | `channels_get` | Detalhe de um canal: saúde e motivos de bloqueio, limite de mensagens, qualidade, pagamento na Meta, coexistência, verificação e `channel_token`. |
-| `channels_create` | Cria um canal pendente e devolve o `connect_url` para o dono do número conectar. |
+| `channels_create` | Cria um canal pendente e devolve o `connect_url` para o dono do número conectar. Validade opcional do `channel_token` (`token_expires_in_days`: 1, 7, 30 ou 90). |
+| `channels_rotate_token` | Gera um novo `channel_token`, com a validade escolhida; o anterior para de funcionar na hora. Com `rotate_connect_url`, gera também um novo `connect_url`. |
 | `channels_rename` | Renomeia um canal. |
 | `channels_delete` | Apaga um canal pendente ou desconectado. Canais ativos são desconectados pelo painel. |
 | `webhooks_list` | Lista os webhooks com URL, eventos, status e canais vinculados. |

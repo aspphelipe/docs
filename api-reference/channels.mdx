@@ -16,8 +16,9 @@ type Channel = {
   display_phone_number: string | null // ex: "+55 11 99999-9999"
   phone_number_id:      string | null // ID do número na Meta: {phone_number_id} no meta-proxy para enviar mensagens
   waba_id:              string | null // ID da conta WhatsApp Business: {waba_id} no meta-proxy para templates
-  channel_token:        string        // Bearer token do meta-proxy (Authorization: Bearer)
-  connect_url:          string        // https://coexy.com.br/connect/<channel_token>
+  channel_token:        string        // Bearer token do meta-proxy (Authorization: Bearer). Secreto
+  channel_token_expires_at: string | null // ISO 8601; null = nunca expira
+  connect_url:          string        // link de conexão do número. Não contém o channel_token
   connected_at:         string | null // ISO 8601
   created_at:           string        // ISO 8601
   verification: {
@@ -55,6 +56,18 @@ Para ser avisado das mudanças sem consultar a API, assine o evento de webhook [
 <Info>
 **Tokens são gerenciados automaticamente pelo Coexy.** Depois de conectar o WhatsApp, você não precisa renovar tokens. Em casos raros (ex.: revogação de permissão na Meta), o canal muda para `disconnected` e você reconecta pelo mesmo `connect_url`, sem recriar o canal.
 </Info>
+
+## Token do canal
+
+O `channel_token` autoriza o envio pelo [meta-proxy](/api-reference/meta-proxy). Ele é secreto: guarde no seu
+servidor e nunca coloque em URL. O `connect_url` usa outro valor, que só serve para conectar o número, então pode ser
+enviado ao dono do número sem expor o token.
+
+- **Validade:** escolha na criação com `token_expires_in_days` (`1`, `7`, `30`, `90` ou `null` para nunca expirar).
+  Sem o campo, o token nunca expira. A data fica em `channel_token_expires_at`.
+- **Token vencido:** o meta-proxy responde `401` com `"code": "token_expired"`. Gere outro com
+  [`POST /channels/:id/rotate-token`](#gerar-novo-token) ou no painel, na aba Configurações do canal.
+- **Vazamento:** gere um novo token. O anterior para de funcionar na hora.
 
 ## Fluxo de conexão
 
@@ -109,11 +122,15 @@ POST /channels
   Nome identificador do canal
 </ParamField>
 
+<ParamField body="token_expires_in_days" type="number | null">
+  Validade do `channel_token` em dias: `1`, `7`, `30` ou `90`. Ausente ou `null`: nunca expira.
+</ParamField>
+
 ```bash
 curl -X POST https://api.coexy.com.br/functions/v1/api/channels \
   -H "x-api-key: crt_pk_sua-chave" \
   -H "Content-Type: application/json" \
-  -d '{ "name": "Suporte Principal" }'
+  -d '{ "name": "Suporte Principal", "token_expires_in_days": 90 }'
 ```
 
 **Resposta:** `Channel` — status `201 Created`
@@ -153,6 +170,33 @@ curl https://api.coexy.com.br/functions/v1/api/channels/uuid-do-canal \
 
 ---
 
+### Gerar novo token
+
+```bash
+POST /channels/:id/rotate-token
+```
+
+Gera um novo `channel_token`. O anterior para de funcionar na hora.
+
+<ParamField body="token_expires_in_days" type="number | null">
+  Validade do novo token em dias: `1`, `7`, `30` ou `90`. Ausente ou `null`: nunca expira.
+</ParamField>
+
+<ParamField body="rotate_connect_url" type="boolean">
+  `true` gera também um novo `connect_url`. Os links de conexão já enviados deixam de funcionar.
+</ParamField>
+
+```bash
+curl -X POST https://api.coexy.com.br/functions/v1/api/channels/uuid-do-canal/rotate-token \
+  -H "x-api-key: crt_pk_sua-chave" \
+  -H "Content-Type: application/json" \
+  -d '{ "token_expires_in_days": 30 }'
+```
+
+**Resposta:** `Channel`, com o novo `channel_token` e `channel_token_expires_at`
+
+---
+
 ### Deletar canal
 
 ```bash
@@ -177,3 +221,4 @@ curl -X DELETE "https://api.coexy.com.br/functions/v1/api/channels/uuid-do-canal
 | `404` | `Channel not found` | ID não existe ou não pertence à sua org |
 | `409` | `Channel is active. Use ?force=true...` | Tentou deletar canal ativo sem `?force=true` |
 | `422` | `"name" is required` | Body sem o campo `name` |
+| `422` | `"token_expires_in_days" must be 1, 7, 30, 90 or null` | Validade fora das opções |

@@ -150,6 +150,7 @@ Os dados chegam nos eventos de webhook `smb_app_state_sync` e `history`. Veja [W
 |--------|---------|-------------|
 | `401` | `Authorization header required` / `Invalid channel token` | Conferir o `channel_token` |
 | `401` | `Channel token expired` (`code: token_expired`) | O `channel_token` passou da validade (`channel_token_expires_at`). Gere outro com `POST /channels/:id/rotate-token` ou no painel |
+| `402` | `subscription_blocked` | Assinatura bloqueada por falta de pagamento: nenhuma chamada passa pelo proxy até o pagamento. Regularize em coexy.com.br, na página Plano |
 | `403` | `Channel is not active` | Canal desconectado ou suspenso; reconectar pelo `connect_url` |
 | `403` | `This endpoint is managed by Coexy` (`code: managed_by_coexy`) | Registro do número (`register`, `deregister`, `request_code`, `verify_code`), PIN de duas etapas, webhooks (`subscribed_apps`, `webhook_configuration`) e tokens são gerenciados pelo Coexy e não passam pelo proxy |
 | `429` | `Rate limit exceeded` | Limite de 100 envios por minuto por canal; aguardar o `Retry-After` |

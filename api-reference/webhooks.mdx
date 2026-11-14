@@ -239,6 +239,8 @@ Conta como falha: resposta fora de 2xx, timeout de 10 segundos ou erro de conex�
 
 No painel, em Webhooks → detalhe do webhook → Últimas entregas, entregas com falha definitiva têm o botão **Reenviar**: uma nova tentativa sai em até 1 minuto, com o mesmo `webhook-id`.
 
+**Assinatura bloqueada:** enquanto a assinatura estiver bloqueada por falta de pagamento, os eventos não são entregues. Eles ficam registrados como falha definitiva em Últimas entregas; depois do pagamento, dá para reenviar pelo botão **Reenviar**.
+
 Com retentativas, eventos podem chegar fora de ordem (ex.: `read` antes de `delivered`). Ordene pelo `timestamp` do próprio evento, não pela ordem de chegada.
 
 Seu endpoint tem **10 segundos** para responder com status 2xx. Responda sempre antes de processar — veja [Segurança](/receiving-events/security).

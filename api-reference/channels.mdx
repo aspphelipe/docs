@@ -218,6 +218,7 @@ curl -X DELETE "https://api.coexy.com.br/functions/v1/api/channels/uuid-do-canal
 
 | Status | Mensagem | Causa |
 |--------|----------|-------|
+| `403` | `trial_channel_limit` | No período de teste a org já tem 3 canais (`POST /channels`). Assine um plano para criar mais |
 | `404` | `Channel not found` | ID não existe ou não pertence à sua org |
 | `409` | `Channel is active. Use ?force=true...` | Tentou deletar canal ativo sem `?force=true` |
 | `422` | `"name" is required` | Body sem o campo `name` |

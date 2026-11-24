@@ -60,7 +60,7 @@ Em `.cursor/mcp.json`:
 | `channels_rename` | Renomeia um canal. |
 | `channels_delete` | Apaga um canal pendente ou desconectado. Canais ativos são desconectados pelo painel. |
 | `webhooks_list` | Lista os webhooks com URL, eventos, status e canais vinculados. |
-| `webhooks_get` | Detalhe de um webhook: segredo da assinatura `X-Coexy-Signature` e entregas das últimas 24 horas. |
+| `webhooks_get` | Detalhe de um webhook: formato do corpo (`payload_format`), segredo da assinatura (`X-Hub-Signature-256` e `X-Coexy-Signature`) e entregas das últimas 24 horas. |
 | `webhooks_create` | Cria um webhook com URL, eventos e, opcionalmente, os canais. |
 | `webhooks_update` | Altera nome, URL, eventos ou pausa e reativa o webhook. |
 | `webhooks_delete` | Apaga um webhook. |

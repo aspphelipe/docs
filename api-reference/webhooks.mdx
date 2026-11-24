@@ -14,6 +14,7 @@ type WebhookConfig = {
   url:         string                              // sempre HTTPS
   events:      WebhookEvent[]                      // ver lista abaixo
   status:      'active' | 'paused'
+  payload_format: 'meta' | 'coexy'                 // envelope do body (ver Formato do payload)
   hmac_secret: string                              // guardar no .env — não muda
   scope:       'org' | 'channels'                 // org = todos os canais
   channel_ids: string[]                            // vazio quando scope = 'org'
@@ -58,6 +59,10 @@ POST /webhooks
 
 <ParamField body="channel_ids" type="string[]">
   IDs dos canais a filtrar. Se omitido, recebe eventos de **todos os canais** da org.
+</ParamField>
+
+<ParamField body="payload_format" type="string">
+  `"meta"` (padrão): body igual ao webhook da Cloud API, com o evento em `entry[0].changes[0].value`. `"coexy"`: só o `value`. Detalhes em [Formato do payload](/receiving-events/overview#formato-do-payload).
 </ParamField>
 
 ```bash
@@ -109,6 +114,10 @@ Envie só os campos que quer mudar (pelo menos um).
 
 <ParamField body="events" type="string[]">
   Nova lista de eventos (não vazia). Substitui a lista atual.
+</ParamField>
+
+<ParamField body="payload_format" type="string">
+  `"meta"` ou `"coexy"`. Vale para as próximas entregas e para as retentativas pendentes.
 </ParamField>
 
 ```bash
@@ -175,7 +184,7 @@ Eventos de origem **Meta** chegam no formato nativo da WhatsApp Cloud API. Event
 
 ## Evento channel_status_update
 
-Evento próprio do Coexy (não vem da Meta), enviado quando o status de um canal muda: conexão concluída (`pending` → `active`), desconexão (`disconnected`) ou suspensão (`suspended`). Assine com `events: ['channel_status_update']`. Use-o no lugar de consultar `GET /api/channels/:id` periodicamente. Chega em até ~1 minuto após a mudança, com a mesma assinatura `X-Coexy-Signature`.
+Evento próprio do Coexy (não vem da Meta), enviado quando o status de um canal muda: conexão concluída (`pending` → `active`), desconexão (`disconnected`) ou suspensão (`suspended`). Assine com `events: ['channel_status_update']`. Use-o no lugar de consultar `GET /api/channels/:id` periodicamente. Chega em até ~1 minuto após a mudança, com a mesma assinatura dos outros eventos. No formato `meta` vem em `entry[0].changes[0].value`, com `field: "channel_status_update"`.
 
 ```json
 {
@@ -252,4 +261,5 @@ Seu endpoint tem **10 segundos** para responder com status 2xx. Responda sempre 
 | `404` | `Webhook not found` | ID não existe ou não pertence à sua org |
 | `422` | `"url" must start with https://` | URL sem HTTPS |
 | `422` | `"events" values must be one of: messages, smb_message_echoes, ...` | Evento fora da lista de "Eventos disponíveis" |
+| `422` | `"payload_format" must be one of: coexy, meta` | Formato diferente de `meta` ou `coexy` |
 | `422` | `One or more channel_ids not found in this org` | Canal não pertence à sua org |

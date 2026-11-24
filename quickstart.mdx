@@ -42,12 +42,13 @@ Salve o `hmac_secret` retornado. Ele **não pode ser recuperado** depois — use
 ```typescript
 export async function POST(request: Request): Promise<Response> {
   const body = await request.text()
-  const signature = request.headers.get('x-coexy-signature') ?? ''
+  const signature = request.headers.get('x-hub-signature-256') ?? ''
 
   const valid = await verifySignature(body, signature, process.env.COEXY_HMAC_SECRET!)
   if (!valid) return new Response('Unauthorized', { status: 401 })
 
-  // Responder 200 ANTES de processar (timeout de 10s)
+  // Responder 200 ANTES de processar (timeout de 10s).
+  // O body segue o webhook da Meta: o evento está em entry[0].changes[0].value
   processEvent(JSON.parse(body)).catch(console.error)
 
   return new Response('OK', { status: 200 })

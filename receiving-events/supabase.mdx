@@ -93,8 +93,18 @@ async function verifySignature(
   return crypto.subtle.verify('HMAC', key, expectedBytes, encoder.encode(body))
 }
 
-async function processEvent(value: Record<string, unknown>): Promise<void> {
-  // O body é o "value" nativo da Meta: { messaging_product, metadata, contacts, messages, statuses }
+// Formato meta (padrão): { object, entry: [{ changes: [{ field, value }] }] }; formato coexy: o value direto
+function readValues(body: Record<string, unknown>): Record<string, unknown>[] {
+  if (!Array.isArray(body.entry)) return [body]
+  return body.entry.flatMap((e: { changes?: { value: Record<string, unknown> }[] }) => (e.changes ?? []).map(c => c.value))
+}
+
+async function processEvent(body: Record<string, unknown>): Promise<void> {
+  for (const value of readValues(body)) await processValue(value)
+}
+
+async function processValue(value: Record<string, unknown>): Promise<void> {
+  // value: { messaging_product, metadata, contacts, messages, statuses }
   const metadata = value.metadata as Record<string, string> | undefined
   const phoneNumberId = metadata?.phone_number_id ?? ''
 
@@ -124,7 +134,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const body = await req.text()
-  const signature = req.headers.get('x-coexy-signature') ?? ''
+  const signature = req.headers.get('x-hub-signature-256') ?? ''
   const secret = Deno.env.get('COEXY_HMAC_SECRET') ?? ''
 
   const valid = await verifySignature(body, signature, secret)

@@ -1,27 +1,57 @@
 ---
 title: Visão Geral
-description: Eventos enviados pelo Coexy — o body é o value nativo da Meta (WhatsApp Cloud API).
+description: Eventos enviados pelo Coexy — no formato do webhook da Meta (WhatsApp Cloud API) ou só o value do evento.
 ---
 
-O Coexy entrega eventos via `POST` com `Content-Type: application/json`. O header `x-coexy-signature` carrega a assinatura HMAC-SHA256 — [verifique-a](/receiving-events/security) antes de processar qualquer dado.
+O Coexy entrega eventos via `POST` com `Content-Type: application/json`, assinados com HMAC-SHA256. [Verifique a assinatura](/receiving-events/security) antes de processar qualquer dado.
 
 ## Headers de cada entrega
 
 ```
-X-Coexy-Signature: sha256=<hex>   — assinatura HMAC-SHA256 do body
-webhook-id:        <uuid>         — id da entrega; igual em todas as tentativas e no reenvio manual
-webhook-timestamp: <segundos>     — hora desta tentativa (Unix, em segundos)
-User-Agent:        Coexy-Webhooks/1.0
-Content-Type:      application/json
+X-Hub-Signature-256: sha256=<hex>   — assinatura HMAC-SHA256 do body (mesmo header da Meta)
+X-Coexy-Signature:   sha256=<hex>   — a mesma assinatura, com o nome do Coexy
+webhook-id:          <uuid>         — id da entrega; igual em todas as tentativas e no reenvio manual
+webhook-timestamp:   <segundos>     — hora desta tentativa (Unix, em segundos)
+User-Agent:          Coexy-Webhooks/1.0
+Content-Type:        application/json
 ```
 
-Use o `webhook-id` para descartar entregas repetidas. A assinatura cobre só o body.
+Os dois headers de assinatura têm o mesmo valor; confira qualquer um deles. A assinatura cobre só o body. Use o `webhook-id` para descartar entregas repetidas.
 
 ## Formato do payload
 
-O body entregue é o objeto `value` do evento da Meta (WhatsApp Cloud API), sem transformações: o mesmo conteúdo que a Meta coloca em `entry[].changes[].value`. O envelope (`object`, `entry`, `changes`, `field`) não é repassado. A exceção são os eventos próprios do Coexy, `channel_status_update` e `channel_health_update`, descritos em [Webhooks](/api-reference/webhooks).
+Cada webhook tem um `payload_format`, escolhido ao criar (no painel ou no campo `payload_format` da [API](/api-reference/webhooks)). O conteúdo do evento é o mesmo nos dois; muda só o envelope.
 
-Exemplo de evento `messages`:
+<Tabs>
+  <Tab title="meta (padrão)">
+O body é igual ao webhook da WhatsApp Cloud API: o evento fica em `entry[0].changes[0].value` e o tipo em `field`. Código, bibliotecas e exemplos feitos para a Meta funcionam sem mudança.
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "<WABA_ID>",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": {
+          "display_phone_number": "15550783881",
+          "phone_number_id": "<PHONE_NUMBER_ID>"
+        },
+        "contacts": [{ "profile": { "name": "João Silva" }, "wa_id": "5511987654321" }],
+        "messages": [ /* mensagens recebidas */ ],
+        "statuses": [ /* atualizações de status das mensagens enviadas */ ]
+      }
+    }]
+  }]
+}
+```
+
+Os eventos próprios do Coexy (`channel_status_update` e `channel_health_update`) vêm no mesmo envelope, com o nome do evento em `field`.
+  </Tab>
+  <Tab title="coexy">
+O body é só o `value` do evento, sem o envelope (`object`, `entry`, `changes`, `field`). Era o único formato até novembro de 2026; webhooks criados antes disso continuam nele.
 
 ```json
 {
@@ -36,21 +66,37 @@ Exemplo de evento `messages`:
 }
 ```
 
-Use `metadata.phone_number_id` para saber de qual canal veio o evento. Os eventos não trazem o nome do campo: se o webhook assina mais de um evento, identifique o tipo pelo conteúdo (`messages`/`statuses` no evento `messages`; `event: "channel_status_update"` ou `"channel_health_update"` nos eventos do Coexy; `message_template_id` em `message_template_status_update`) ou crie um webhook por tipo de evento.
+Sem o `field`, identifique o tipo pelo conteúdo (`messages`/`statuses` no evento `messages`; `event: "channel_status_update"` ou `"channel_health_update"` nos eventos do Coexy; `message_template_id` em `message_template_status_update`) ou crie um webhook por tipo de evento.
+  </Tab>
+</Tabs>
 
-Para a estrutura de cada tipo de evento, consulte a documentação oficial da Meta (o body corresponde ao `value` dos exemplos):
+<Warning>
+Se o seu endpoint responde 200 mas não processa nada, confira se o código lê o formato do webhook. Código que lê `body.entry` não encontra nada no formato `coexy`, e código que lê `body.messages` não encontra nada no formato `meta`. Dá para trocar o formato no painel (Webhooks → Editar) ou com `PATCH /webhooks/:id`.
+</Warning>
+
+Use `metadata.phone_number_id` para saber de qual canal veio o evento. Para a estrutura de cada tipo de evento, consulte a documentação oficial da Meta:
 
 - [Exemplos de payload (Meta)](https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples)
 - [Referência de campos (Meta)](https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components)
 
 ## Processando eventos
 
+O `readEvents` abaixo aceita os dois formatos e devolve uma lista de `{ field, value }`.
+
 ```typescript
+type CoexyEvent = { field: string | null; value: Record<string, unknown> }
+
+// meta: { object, entry: [{ changes: [{ field, value }] }] }; coexy: o value direto
+function readEvents(body: Record<string, unknown>): CoexyEvent[] {
+  if (!Array.isArray(body.entry)) return [{ field: null, value: body }]
+  return body.entry.flatMap((e: { changes?: CoexyEvent[] }) => e.changes ?? [])
+}
+
 async function handleWebhook(req: Request): Promise<Response> {
   const body = await req.text()
 
   // 1. Verificar assinatura HMAC — obrigatório (ver Segurança)
-  const valid = await verifySignature(body, req.headers.get('x-coexy-signature') ?? '', secret)
+  const valid = await verifySignature(body, req.headers.get('x-hub-signature-256') ?? '', secret)
   if (!valid) return new Response('Unauthorized', { status: 401 })
 
   // 2. Responder 200 IMEDIATAMENTE — o Coexy considera falha após 10s
@@ -58,21 +104,23 @@ async function handleWebhook(req: Request): Promise<Response> {
   return new Response('OK', { status: 200 })
 }
 
-async function processPayload(value: Record<string, unknown>): Promise<void> {
-  // Eventos próprios do Coexy
-  if (value.event === 'channel_status_update' || value.event === 'channel_health_update') {
-    handleCoexyEvent(value)
-    return
-  }
+async function processPayload(body: Record<string, unknown>): Promise<void> {
+  for (const { value } of readEvents(body)) {
+    // Eventos próprios do Coexy
+    if (value.event === 'channel_status_update' || value.event === 'channel_health_update') {
+      handleCoexyEvent(value)
+      continue
+    }
 
-  // Mensagens recebidas
-  for (const msg of (value.messages as unknown[]) ?? []) {
-    handleMessage(msg, value)
-  }
+    // Mensagens recebidas
+    for (const msg of (value.messages as unknown[]) ?? []) {
+      handleMessage(msg, value)
+    }
 
-  // Status de mensagens enviadas
-  for (const status of (value.statuses as unknown[]) ?? []) {
-    handleStatus(status)
+    // Status de mensagens enviadas
+    for (const status of (value.statuses as unknown[]) ?? []) {
+      handleStatus(status)
+    }
   }
 }
 ```
@@ -85,23 +133,32 @@ from fastapi import BackgroundTasks, FastAPI, Request, Response
 
 app = FastAPI()
 
+def read_events(body: dict) -> list[dict]:
+    # meta: { object, entry: [{ changes: [{ field, value }] }] }; coexy: o value direto
+    if not isinstance(body.get("entry"), list):
+        return [{"field": None, "value": body}]
+    return [c for e in body["entry"] for c in e.get("changes", [])]
+
 @app.post("/webhook/coexy")
 async def coexy_webhook(request: Request, background: BackgroundTasks):
     body = await request.body()
-    if not verify_signature(body, request.headers.get("x-coexy-signature", ""), COEXY_HMAC_SECRET):
+    if not verify_signature(body, request.headers.get("x-hub-signature-256", ""), COEXY_HMAC_SECRET):
         return Response("Unauthorized", status_code=401)
 
     # Responder antes de processar (timeout de 10s)
     background.add_task(process_payload, json.loads(body))
     return Response("OK", status_code=200)
 
-def process_payload(value: dict) -> None:
-    if value.get("event") in ("channel_status_update", "channel_health_update"):
-        return handle_coexy_event(value)
-    for msg in value.get("messages", []):
-        handle_message(msg, value)
-    for status in value.get("statuses", []):
-        handle_status(status)
+def process_payload(body: dict) -> None:
+    for event in read_events(body):
+        value = event["value"]
+        if value.get("event") in ("channel_status_update", "channel_health_update"):
+            handle_coexy_event(value)
+            continue
+        for msg in value.get("messages", []):
+            handle_message(msg, value)
+        for status in value.get("statuses", []):
+            handle_status(status)
 ```
 
 `verify_signature` está em [Segurança](/receiving-events/security#python).

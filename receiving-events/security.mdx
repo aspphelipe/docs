@@ -5,7 +5,7 @@ description: Verificação de assinatura HMAC, resposta assíncrona e idempotên
 
 ## Verificação da assinatura HMAC
 
-Todo evento carrega o header `x-coexy-signature` com uma assinatura HMAC-SHA256 no formato `sha256=<hex>`.
+Todo evento carrega a assinatura HMAC-SHA256 no formato `sha256=<hex>` em dois headers com o mesmo valor: `x-hub-signature-256` (o nome usado pela Meta) e `x-coexy-signature`. Confira qualquer um deles.
 
 **Rejeite qualquer requisição sem assinatura válida.**
 

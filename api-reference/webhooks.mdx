@@ -205,7 +205,7 @@ Evento próprio do Coexy (não vem da Meta), enviado quando o status de um canal
 
 ## Evento channel_health_update
 
-Evento próprio do Coexy (não vem da Meta), enviado quando a saúde do número muda. `health_state`: `healthy`, `warning` (atenção, ex.: qualidade amarela), `restricted` (envios iniciados pela empresa restritos), `blocked` (envios bloqueados, ex.: pagamento) ou `banned` (número banido). `issues` traz os motivos informados pela Meta, com `description` em português quando conhecida. Assine com `events: ['channel_health_update']`.
+Evento próprio do Coexy (não vem da Meta), enviado quando a saúde do número muda. `health_state`: `healthy`, `warning` (atenção, ex.: qualidade amarela), `restricted` (envios iniciados pela empresa restritos), `blocked` (envios bloqueados, ex.: pagamento) ou `banned` (número banido). `issues` traz os motivos informados pela Meta, com `description` em português quando conhecida. `phone_status` é o status do número na Meta (`CONNECTED`, `PENDING`, `DISCONNECTED`...): com `DISCONNECTED` a Meta tirou o número da Cloud API (em coexistência, a ligação com o app WhatsApp Business caiu) e os envios voltam erro `133010`; reconecte pelo `connect_url` do canal e confirme no app. Assine com `events: ['channel_health_update']`.
 
 ```json
 {
@@ -214,6 +214,7 @@ Evento próprio do Coexy (não vem da Meta), enviado quando a saúde do número 
   "phone_number_id": "1128059963726893",
   "previous_state": "healthy",
   "health_state": "warning",
+  "phone_status": "CONNECTED",
   "quality_rating": "YELLOW",
   "messaging_limit_tier": "TIER_1K",
   "issues": [],

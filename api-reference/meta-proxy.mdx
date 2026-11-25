@@ -158,3 +158,17 @@ Os dados chegam nos eventos de webhook `smb_app_state_sync` e `history`. Veja [W
 | `503` | `CHANNEL_DISCONNECTED` | O token da Meta foi revogado. Não recrie o canal: reconecte pelo `connect_url` |
 
 Demais erros vêm da Meta, no formato da Cloud API.
+
+Erro `133010` (`Account not registered`): o número não está na Cloud API. A resposta da Meta vem igual (mesmo status e mesmo `error`), com o campo `coexy` explicando o que fazer:
+
+```json
+{
+  "error": { "code": 133010, "type": "OAuthException", "message": "(#133010) Account not registered", "fbtrace_id": "..." },
+  "coexy": {
+    "code": "PHONE_NOT_REGISTERED",
+    "message": "Número desconectado na Meta. Reconecte o canal pelo link de conexão no painel Coexy e confirme no app WhatsApp Business."
+  }
+}
+```
+
+Em coexistência isso acontece quando a ligação com o app WhatsApp Business cai: reconecte pelo `connect_url` do canal. Número novo que ainda não terminou a ativação aparece no painel como "Ativação pendente".
